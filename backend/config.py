@@ -12,3 +12,7 @@ class Config:
     WECHAT_APP_SECRET = os.environ.get('WECHAT_APP_SECRET')
     ERP_API_URL = os.environ.get('ERP_API_URL')
     ERP_API_KEY = os.environ.get('ERP_API_KEY')
+
+class TestConfig(Config):
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
