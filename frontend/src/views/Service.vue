@@ -1,27 +1,98 @@
 <template>
   <div class="service">
-    <h1>品牌服务</h1>
+    <div class="header">
+      <img src="@/assets/logo.svg" alt="红门" class="logo" />
+      <h1>红门售后服务</h1>
+    </div>
     
-    <van-grid :column-num="2" :gutter="10">
-      <van-grid-item icon="scan" text="产品绑定" to="/product/bind" />
-      <van-grid-item icon="orders-o" text="产品维修" to="/product/repair" />
-      <van-grid-item icon="clock-o" text="进度查询" to="/progress" />
-      <van-grid-item icon="warning-o" text="常见故障" to="/faults" />
-    </van-grid>
+    <div class="menu-grid">
+      <div class="menu-item" @click="$router.push('/product/bind')">
+        <van-icon name="scan" size="40" color="#1976d2" />
+        <span>产品绑定</span>
+      </div>
+      <div class="menu-item" @click="$router.push('/product/repair')">
+        <van-icon name="orders-o" size="40" color="#1976d2" />
+        <span>产品维修</span>
+      </div>
+      <div class="menu-item" @click="$router.push('/progress')">
+        <van-icon name="clock-o" size="40" color="#1976d2" />
+        <span>进度查询</span>
+      </div>
+      <div class="menu-item" @click="$router.push('/faults')">
+        <van-icon name="warning-o" size="40" color="#1976d2" />
+        <span>常见故障</span>
+      </div>
+    </div>
+    
+    <div class="bottom-menu">
+      <van-tabbar v-model="activeMenu">
+        <van-tabbar-item icon="service-o" to="/">品牌服务</van-tabbar-item>
+        <van-tabbar-item icon="user-o" to="/user">我的</van-tabbar-item>
+      </van-tabbar>
+    </div>
   </div>
 </template>
 
 <script>
 export default {
-  name: 'Service'
+  name: 'Service',
+  data() {
+    return {
+      activeMenu: 0
+    }
+  }
 }
 </script>
 
 <style scoped>
 .service {
-  padding: 16px;
+  min-height: 100vh;
+  background: #f5f5f5;
+  padding-bottom: 50px;
 }
-.service h1 {
-  margin-bottom: 24px;
+.header {
+  background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+  color: white;
+  padding: 40px 20px;
+  text-align: center;
+}
+.logo {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 16px;
+}
+.header h1 {
+  font-size: 24px;
+  margin: 0;
+}
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  padding: 24px;
+}
+.menu-item {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+.menu-item:active {
+  transform: scale(0.95);
+}
+.menu-item span {
+  display: block;
+  margin-top: 12px;
+  font-size: 16px;
+  color: #333;
+}
+.bottom-menu {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
 }
 </style>
