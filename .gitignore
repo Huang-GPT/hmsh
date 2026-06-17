@@ -54,3 +54,7 @@ data/
 
 # Docker
 docker-compose.override.yml
+
+# Agent / IDE local artifacts
+.mimocode/
+mimo.exe

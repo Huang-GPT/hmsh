@@ -4,7 +4,8 @@
     
     <van-tabs v-model="activeStatus" @change="onStatusChange">
       <van-tab title="全部" name="" />
-      <van-tab title="待处理" name="pending_process" />
+      <van-tab title="待受理" name="pending_accept" />
+      <van-tab title="待派单" name="pending_dispatch" />
       <van-tab title="处理中" name="processing" />
       <van-tab title="待确认" name="pending_confirm" />
       <van-tab title="已完成" name="completed" />
@@ -60,13 +61,16 @@ export default {
       orders: [],
       showDetail: false,
       orderDetail: null,
-      statusText: {
-        pending_assign: '待分配',
-        pending_process: '待处理',
+        statusText: {
+        pending_accept: '待受理',
+        pending_dispatch: '待派单',
+        dispatched: '已派单',
+        assigned_engineer: '已分配工程师',
         processing: '处理中',
         pending_confirm: '待确认',
         completed: '已完成',
-        closed: '已关闭'
+        closed: '已关闭',
+        cancelled: '已撤销'
       }
     }
   },

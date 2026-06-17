@@ -64,12 +64,15 @@ export default {
       statusStats: {},
       recentOrders: [],
       statusMap: {
-        'pending_assign': '待分配',
-        'pending_process': '待处理',
+        'pending_accept': '待受理',
+        'pending_dispatch': '待派单',
+        'dispatched': '已派单',
+        'assigned_engineer': '已分配工程师',
         'processing': '处理中',
         'pending_confirm': '待确认',
         'completed': '已完成',
-        'closed': '已关闭'
+        'closed': '已关闭',
+        'cancelled': '已撤销'
       }
     }
   },

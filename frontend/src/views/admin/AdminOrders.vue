@@ -41,12 +41,14 @@
           <van-cell title="创建时间" :value="currentOrder.created_at" />
         </van-cell-group>
 
-        <div class="action-section" v-if="currentOrder.status !== 'completed' && currentOrder.status !== 'closed'">
+        <div class="action-section" v-if="currentOrder.status !== 'completed' && currentOrder.status !== 'closed' && currentOrder.status !== 'cancelled'">
           <h4>操作</h4>
-          <van-button v-if="currentOrder.status === 'pending_assign'" type="primary" size="small" @click="showAssignDialog">分配工单</van-button>
-          <van-button v-if="currentOrder.status === 'pending_process'" type="warning" size="small" @click="updateStatus('processing')">开始处理</van-button>
-          <van-button v-if="currentOrder.status === 'processing'" type="success" size="small" @click="updateStatus('pending_confirm')">处理完成</van-button>
-          <van-button v-if="currentOrder.status === 'pending_confirm'" type="info" size="small" @click="updateStatus('completed')">确认完成</van-button>
+          <van-button v-if="currentOrder.status === 'pending_accept' || currentOrder.status === 'pending_dispatch'" type="primary" size="small" @click="showAssignDialog">分配工单</van-button>
+          <van-button v-if="currentOrder.status === 'dispatched'" type="primary" size="small" @click="showAssignDialog">分配工程师</van-button>
+          <van-button v-if="currentOrder.status === 'assigned_engineer'" type="warning" size="small" @click="startProcessing">开始处理</van-button>
+          <van-button v-if="currentOrder.status === 'processing'" type="success" size="small" @click="completeOrder">处理完成</van-button>
+          <van-button v-if="currentOrder.status === 'pending_confirm'" type="info" size="small" @click="confirmCompleted">确认完成</van-button>
+          <van-button type="danger" plain size="small" @click="rejectCurrent">关闭工单</van-button>
         </div>
       </div>
     </van-dialog>
@@ -64,7 +66,7 @@
 </template>
 
 <script>
-import { getAllOrders, assignOrder, updateOrderStatus, getServiceStaff } from '@/api/admin'
+import { getAllOrders, assignOrder, updateOrderStatus, getServiceStaff, startProcessingOrder, completeOrder as completeOrderApi, rejectOrder } from '@/api/admin'
 
 export default {
   name: 'AdminOrders',
@@ -80,21 +82,27 @@ export default {
       selectedStaff: null,
       remark: '',
       statusMap: {
-        'pending_assign': '待分配',
-        'pending_process': '待处理',
+        'pending_accept': '待受理',
+        'pending_dispatch': '待派单',
+        'dispatched': '已派单',
+        'assigned_engineer': '已分配工程师',
         'processing': '处理中',
         'pending_confirm': '待确认',
         'completed': '已完成',
-        'closed': '已关闭'
+        'closed': '已关闭',
+        'cancelled': '已撤销'
       },
       statusOptions: [
         { text: '全部状态', value: '' },
-        { text: '待分配', value: 'pending_assign' },
-        { text: '待处理', value: 'pending_process' },
+        { text: '待受理', value: 'pending_accept' },
+        { text: '待派单', value: 'pending_dispatch' },
+        { text: '已派单', value: 'dispatched' },
+        { text: '已分配工程师', value: 'assigned_engineer' },
         { text: '处理中', value: 'processing' },
         { text: '待确认', value: 'pending_confirm' },
         { text: '已完成', value: 'completed' },
-        { text: '已关闭', value: 'closed' }
+        { text: '已关闭', value: 'closed' },
+        { text: '已撤销', value: 'cancelled' }
       ]
     }
   },
@@ -121,12 +129,15 @@ export default {
     },
     tagType(status) {
       const map = {
-        'pending_assign': 'warning',
-        'pending_process': 'orange',
+        'pending_accept': 'warning',
+        'pending_dispatch': 'orange',
+        'dispatched': 'primary',
+        'assigned_engineer': 'primary',
         'processing': 'primary',
         'pending_confirm': 'success',
         'completed': 'default',
-        'closed': 'danger'
+        'closed': 'danger',
+        'cancelled': 'danger'
       }
       return map[status] || 'default'
     },
@@ -155,14 +166,46 @@ export default {
         this.$toast('操作失败')
       }
     },
-    async updateStatus(status) {
+    async startProcessing() {
       try {
-        await updateOrderStatus(this.currentOrder.id, status, this.remark)
-        this.$toast.success('状态更新成功')
+        await startProcessingOrder(this.currentOrder.id, this.remark)
+        this.$toast.success('已开始处理')
         this.showDetailDialog = false
         this.loadOrders()
       } catch (e) {
-        this.$toast('操作失败')
+        this.$toast(e?.response?.data?.error || '操作失败')
+      }
+    },
+    async completeOrder() {
+      try {
+        await completeOrderApi(this.currentOrder.id, this.remark)
+        this.$toast.success('已处理完成，等待客户确认')
+        this.showDetailDialog = false
+        this.loadOrders()
+      } catch (e) {
+        this.$toast(e?.response?.data?.error || '操作失败')
+      }
+    },
+    async confirmCompleted() {
+      try {
+        await updateOrderStatus(this.currentOrder.id, 'completed', this.remark)
+        this.$toast.success('已确认完成')
+        this.showDetailDialog = false
+        this.loadOrders()
+      } catch (e) {
+        this.$toast(e?.response?.data?.error || '操作失败')
+      }
+    },
+    async rejectCurrent() {
+      const reason = window.prompt('请输入关闭原因', this.remark || '')
+      if (!reason) return
+      try {
+        await rejectOrder(this.currentOrder.id, reason)
+        this.$toast.success('已关闭')
+        this.showDetailDialog = false
+        this.loadOrders()
+      } catch (e) {
+        this.$toast(e?.response?.data?.error || '操作失败')
       }
     }
   }

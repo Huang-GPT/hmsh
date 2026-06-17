@@ -26,7 +26,19 @@ export function assignOrder(orderId, handlerId) {
 }
 
 export function updateOrderStatus(orderId, status, remark) {
-  return api.put(`/admin/orders/${orderId}/status`, { status, remark, operator_id: 1 })
+  return api.put(`/admin/orders/${orderId}/status`, { status, remark })
+}
+
+export function startProcessingOrder(orderId, remark) {
+  return api.post(`/admin/orders/${orderId}/start-processing`, { remark })
+}
+
+export function completeOrder(orderId, remark) {
+  return api.post(`/admin/orders/${orderId}/complete`, { remark })
+}
+
+export function rejectOrder(orderId, reason) {
+  return api.post(`/admin/orders/${orderId}/reject`, { reason })
 }
 
 export function getAllUsers(params) {
