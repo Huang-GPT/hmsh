@@ -1,82 +1,164 @@
 version: '3.8'
 
+# ============================================================
+#  红门售后工单系统 - 生产环境编排
+#
+#  所有端口在 .env 中配置，默认值避开常见冲突
+#  （前端 18080 / 后端 15000 / MySQL 13306 / Redis 16379）
+# ============================================================
+
 services:
-  # 前端服务（Nginx）
+  # ----- 前端（Nginx + Vue 静态产物） -----
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-    ports:
-      - "8080:80"
-    depends_on:
-      - backend
+    image: hongmen-frontend:${TAG:-latest}
+    container_name: hongmen-frontend
     restart: unless-stopped
+    ports:
+      - "${HOST_PORT_FRONTEND:-18080}:${CONTAINER_PORT_FRONTEND:-80}"
+    depends_on:
+      backend:
+        condition: service_healthy
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # 日志容量限制（防容器磁盘爆满）
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # 后端服务（Flask）
+  # ----- 后端（Flask + Gunicorn） -----
   backend:
     build:
       context: ./backend
       dockerfile: ../Dockerfile.backend
+    image: hongmen-backend:${TAG:-latest}
+    container_name: hongmen-backend
+    restart: unless-stopped
+    # 注意：后端 5000 端口在容器网络内通信用，宿主机端口可对外或仅内网
     ports:
-      - "5000:5000"
+      - "${HOST_PORT_BACKEND:-15000}:${CONTAINER_PORT_BACKEND:-5000}"
     environment:
-      - DATABASE_URL=mysql+pymysql://root:${DB_PASSWORD}@db/hongmen_after_sales
+      - DATABASE_URL=mysql+pymysql://root:${DB_PASSWORD}@db:3306/hongmen_after_sales
       - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_EXPIRY_HOURS=${JWT_EXPIRY_HOURS:-2}
       - WECHAT_APP_ID=${WECHAT_APP_ID}
       - WECHAT_APP_SECRET=${WECHAT_APP_SECRET}
+      - WECHAT_TEMPLATE_ORDER_STATUS=${WECHAT_TEMPLATE_ORDER_STATUS:-}
       - ERP_API_URL=${ERP_API_URL}
       - ERP_API_KEY=${ERP_API_KEY}
-    volumes:
-      - ./backend:/app
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-4}
+      - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-60}
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
-    restart: unless-stopped
+        condition: service_healthy
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000/api/health/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # MySQL数据库
+  # ----- MySQL -----
   db:
     image: mysql:8.0
+    container_name: hongmen-db
+    restart: unless-stopped
+    # 生产：DB 不应直接对外暴露
+    # 取消下行注释即可对外（**极不建议公网**）
+    # ports:
+    #   - "${HOST_PORT_MYSQL:-13306}:${CONTAINER_PORT_MYSQL:-3306}"
+    expose:
+      - "${CONTAINER_PORT_MYSQL:-3306}"
     environment:
       - MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
       - MYSQL_DATABASE=hongmen_after_sales
       - MYSQL_CHARACTER_SET_SERVER=utf8mb4
       - MYSQL_COLLATION_SERVER=utf8mb4_unicode_ci
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=caching_sha2_password
+      - --max_connections=200
+      - --innodb_buffer_pool_size=256M
     volumes:
-      - ./data/mysql:/var/lib/mysql
-      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - "3306:3306"
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
+      - mysql_data:/var/lib/mysql
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_PASSWORD}"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # Redis缓存
+  # ----- Redis -----
   redis:
     image: redis:7-alpine
-    command: redis-server --appendonly yes
-    volumes:
-      - ./data/redis:/data
-    ports:
-      - "6379:6379"
+    container_name: hongmen-redis
     restart: unless-stopped
+    # 生产：Redis 同样不应直接对外
+    # ports:
+    #   - "${HOST_PORT_REDIS:-16379}:${CONTAINER_PORT_REDIS:-6379}"
+    expose:
+      - "${CONTAINER_PORT_REDIS:-6379}"
+    command: >
+      redis-server
+        --appendonly yes
+        --maxmemory 256mb
+        --maxmemory-policy allkeys-lru
+        --requirepass ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
+# ============================================================
+#  命名卷（持久化数据，与主机路径解耦）
+# ============================================================
 volumes:
   mysql_data:
+    name: hongmen_mysql_data
   redis_data:
+    name: hongmen_redis_data
 
 networks:
   app-network:
+    name: hongmen-network
     driver: bridge
