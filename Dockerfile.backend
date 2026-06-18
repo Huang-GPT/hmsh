@@ -1,12 +1,28 @@
 FROM python:3.11-slim
 
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# 系统依赖（mysqlclient 编译需要）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc \
+        default-libmysqlclient-dev \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
+# 先装依赖（利用 Docker 缓存）
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
+    && apt-get purge -y --auto-remove gcc pkg-config
+
+# 复制应用
 COPY . .
 
+# Gunicorn 用配置文件启动（非 flask run）
 EXPOSE 5000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:create_app()"]
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "app:create_app()"]

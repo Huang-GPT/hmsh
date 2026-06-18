@@ -113,6 +113,25 @@ def compat_mark_helpful(fault_id):
     return jsonify({'fault': fault.to_dict()})
 
 
+# ============ 健康检查（生产部署用）============
+@bp.route('/health', methods=['GET'])
+def health():
+    """健康检查端点：返回 200 表示应用进程正常。
+    不做鉴权、不查 DB（K8s/Docker liveness 探针）。"""
+    return jsonify({'status': 'ok'})
+
+
+@bp.route('/health/ready', methods=['GET'])
+def health_ready():
+    """就绪探针：检查 DB 是否能连接。
+    用于 readinessProbe；DB 不可用时返回 503。"""
+    try:
+        db.session.execute(db.text('SELECT 1'))
+        return jsonify({'status': 'ok', 'database': 'up'})
+    except Exception as e:
+        return jsonify({'status': 'degraded', 'database': 'down', 'error': str(e)}), 503
+
+
 @bp.route('/faults', methods=['POST'])
 @login_required
 def compat_create_fault():
