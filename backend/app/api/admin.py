@@ -605,8 +605,19 @@ def admin_create_product():
         production_date=_parse_csv_date(data.get('production_date')),
         status=data.get('status') or 'active',
     )
-    db.session.add(p)
-    db.session.commit()
+    try:
+        db.session.add(p)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        # 把真实错误返回给前端（方便排查 schema 不匹配等问题）
+        return jsonify({
+            'error': '数据库写入失败',
+            'detail': str(e)[:500],
+            'hint': '多半是 products 表缺字段。服务器跑: '
+                    '`bash fix-80-port.sh --proxy` 的同款 ALTER TABLE 加字段, '
+                    '或重置数据卷让 init.sql 重建表'
+        }), 500
     return jsonify({'message': '创建成功', 'product': p.to_dict()}), 201
 
 
