@@ -5,8 +5,8 @@ const api = axios.create({
   timeout: 10000
 })
 
-export function adminLogin(openid) {
-  return api.post('/auth/admin/login', { openid })
+export function adminLogin(account, password) {
+  return api.post('/auth/admin/login', { account, password })
 }
 
 export function getStatistics() {
@@ -55,6 +55,28 @@ export function updateUserRole(userId, role) {
 
 export function getAllProducts(params) {
   return api.get('/admin/products', { params })
+}
+
+export function createProduct(data) {
+  return api.post('/admin/products', data)
+}
+
+export function deleteProduct(id) {
+  return api.delete(`/admin/products/${id}`)
+}
+
+export function updateProduct(id, data) {
+  return api.put(`/admin/products/${id}`, data)
+}
+
+// 导入 CSV multipart/form-data
+export function importProducts(file, onProgress) {
+  const form = new FormData()
+  form.append('file', file)
+  return api.post('/admin/products/import', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: onProgress,
+  })
 }
 
 export function getAllFaults(params) {

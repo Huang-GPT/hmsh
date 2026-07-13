@@ -65,18 +65,62 @@ CREATE TABLE IF NOT EXISTS engineers (
 -- ===========================================
 CREATE TABLE IF NOT EXISTS products (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    serial_number VARCHAR(64) NOT NULL UNIQUE COMMENT '产品序列号',
-    model VARCHAR(64) NOT NULL COMMENT '产品型号',
+    serial_number VARCHAR(64) UNIQUE COMMENT '产品序列号',
+    model VARCHAR(64) COMMENT '产品型号',
     product_family VARCHAR(64) COMMENT '产品族',
     production_date DATE COMMENT '生产日期',
     sap_order_no VARCHAR(32) COMMENT 'SAP销售订单号',
     sap_line_item VARCHAR(16) COMMENT 'SAP行项目号',
     status ENUM('active','inactive') DEFAULT 'active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    -- 销售订单 17~19 CSV 导入字段
+    sales_no VARCHAR(32) COMMENT '销售单号',
+    customer_name VARCHAR(128) COMMENT '客户名称',
+    dealer_name VARCHAR(128) COMMENT '经销商名称',
+    dealer_contact VARCHAR(64) COMMENT '经销商联系人',
+    dealer_phone VARCHAR(32) COMMENT '经销商电话',
+    product_no VARCHAR(64) COMMENT '产品编号(型号代码)',
+    product_name VARCHAR(256) COMMENT '产品名称',
+    shipping_address VARCHAR(512) COMMENT '发货地址',
+    qr_code VARCHAR(64) UNIQUE COMMENT '二维码（一码一物）',
+    receiver VARCHAR(64) COMMENT '收货人',
+    receiver_phone VARCHAR(32) COMMENT '联系电话',
+    order_date DATETIME COMMENT '下单日期',
+    delivery_date DATETIME COMMENT '交货日期',
     INDEX idx_serial_number (serial_number),
+    INDEX idx_qr_code (qr_code),
     INDEX idx_sap_order (sap_order_no, sap_line_item),
-    INDEX idx_model (model)
+    INDEX idx_model (model),
+    INDEX idx_sales_no (sales_no),
+    INDEX idx_customer_name (customer_name),
+    INDEX idx_dealer_name (dealer_name),
+    INDEX idx_product_no (product_no),
+    INDEX idx_product_name (product_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 兼容老部署：若 products 表存在但缺新列，逐列 ALTER TABLE 添加
+-- MySQL 8.0.29+ 支持 ADD COLUMN IF NOT EXISTS
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS sales_no VARCHAR(32) COMMENT '销售单号';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS customer_name VARCHAR(128) COMMENT '客户名称';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS dealer_name VARCHAR(128) COMMENT '经销商名称';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS dealer_contact VARCHAR(64) COMMENT '经销商联系人';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS dealer_phone VARCHAR(32) COMMENT '经销商电话';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS product_no VARCHAR(64) COMMENT '产品编号';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS product_name VARCHAR(256) COMMENT '产品名称';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS shipping_address VARCHAR(512) COMMENT '发货地址';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS qr_code VARCHAR(64) COMMENT '二维码';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS receiver VARCHAR(64) COMMENT '收货人';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS receiver_phone VARCHAR(32) COMMENT '联系电话';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS order_date DATETIME COMMENT '下单日期';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS delivery_date DATETIME COMMENT '交货日期';
+
+ALTER TABLE products ADD INDEX IF NOT EXISTS idx_qr_code (qr_code);
+ALTER TABLE products ADD INDEX IF NOT EXISTS idx_sales_no (sales_no);
+ALTER TABLE products ADD INDEX IF NOT EXISTS idx_customer_name (customer_name);
+ALTER TABLE products ADD INDEX IF NOT EXISTS idx_dealer_name (dealer_name);
+ALTER TABLE products ADD INDEX IF NOT EXISTS idx_product_no (product_no);
+ALTER TABLE products ADD INDEX IF NOT EXISTS idx_product_name (product_name);
 
 -- ===========================================
 -- 用户产品绑定表

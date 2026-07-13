@@ -8,6 +8,9 @@ from app.models.common_fault import FaultCategory, CommonFault
 from app.models.product import Product
 from app.models.system import SystemConfig
 from app import db
+import csv
+import io
+from datetime import datetime
 
 # ========== 工作台统计 ==========
 @bp.route('/admin/dashboard', methods=['GET'])
@@ -484,3 +487,241 @@ def get_order_detail(order_id):
     order = WorkOrder.query.get_or_404(order_id)
     logs = order.status_logs.all()
     return jsonify({'order': order.to_dict(), 'logs': [l.to_dict() for l in logs]})
+
+
+# ============================================================
+#  产品库（销售订单 17~19 CSV 导入格式）
+# ============================================================
+def _parse_csv_date(s, with_time=False):
+    """解析 '2026/7/6' 或 '2026/7/6 10:44:15'"""
+    if not s or not str(s).strip():
+        return None
+    s = str(s).strip()
+    for fmt in ('%Y/%m/%d %H:%M:%S', '%Y-%m-%d %H:%M:%S',
+                '%Y/%m/%d', '%Y-%m-%d'):
+        try:
+            d = datetime.strptime(s, fmt)
+            if '%H' not in fmt and with_time:
+                return None
+            return d
+        except ValueError:
+            continue
+    return None
+
+
+def _coerce_csv_row(row):
+    """把 CSV 一行（dict）规范成 Product 字段 dict。
+       容错：缺列、空白、非法日期返回 None，不抛异常。"""
+    def s(v):
+        if v is None:
+            return None
+        v = str(v).strip()
+        return v if v else None
+
+    return {
+        'sales_no':         s(row.get('销售单号')),
+        'customer_name':    s(row.get('客户名称')),
+        'dealer_name':      s(row.get('经销商名称')),
+        'dealer_contact':   s(row.get('经销商联系人')),
+        'dealer_phone':     s(row.get('经销商电话')),
+        'product_no':       s(row.get('产品编号')),
+        'product_name':     s(row.get('产品名称')),
+        'shipping_address': s(row.get('发货地址')),
+        'qr_code':          s(row.get('二维码')),
+        'receiver':         s(row.get('收货人')),
+        'receiver_phone':   s(row.get('联系电话')),
+        'order_date':       _parse_csv_date(row.get('下单日期'), with_time=True),
+        'delivery_date':    _parse_csv_date(row.get('交货日期'), with_time=True),
+        'production_date':  _parse_csv_date(row.get('生产日期')),
+        # 兼容老字段：product_name → model（CSV 没这列就用 product_name）
+        'model':            s(row.get('产品名称')),
+    }
+
+
+@bp.route('/admin/products', methods=['GET'])
+@login_required
+def admin_list_products():
+    """产品库列表，支持关键词搜索 + 分页"""
+    keyword = request.args.get('keyword', '').strip()
+    status = request.args.get('status', '').strip()
+    page = max(1, request.args.get('page', default=1, type=int))
+    page_size = min(200, max(1, request.args.get('page_size', default=50, type=int)))
+
+    q = Product.query
+    if keyword:
+        like = f'%{keyword}%'
+        from sqlalchemy import or_
+        q = q.filter(or_(
+            Product.sales_no.like(like),
+            Product.qr_code.like(like),
+            Product.serial_number.like(like),
+            Product.customer_name.like(like),
+            Product.product_no.like(like),
+            Product.model.like(like),
+            Product.product_name.like(like),
+        ))
+    if status:
+        q = q.filter(Product.status == status)
+
+    total = q.count()
+    items = q.order_by(Product.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    return jsonify({
+        'items': [p.to_dict() for p in items],
+        'total': total,
+        'page': page,
+        'page_size': page_size,
+    })
+
+
+@bp.route('/admin/products', methods=['POST'])
+@login_required
+@role_required('admin', 'operator')
+def admin_create_product():
+    """单条新建产品记录"""
+    data = request.get_json() or {}
+    qr = (data.get('qr_code') or '').strip()
+    if not qr:
+        return jsonify({'error': '缺少二维码 qr_code'}), 400
+
+    # qr_code 唯一
+    if Product.query.filter_by(qr_code=qr).first():
+        return jsonify({'error': f'二维码 {qr} 已存在'}), 400
+
+    p = Product(
+        sales_no=data.get('sales_no'),
+        customer_name=data.get('customer_name'),
+        dealer_name=data.get('dealer_name'),
+        dealer_contact=data.get('dealer_contact'),
+        dealer_phone=data.get('dealer_phone'),
+        product_no=data.get('product_no'),
+        product_name=data.get('product_name') or data.get('model'),
+        model=data.get('model') or data.get('product_name'),
+        shipping_address=data.get('shipping_address'),
+        qr_code=qr,
+        receiver=data.get('receiver'),
+        receiver_phone=data.get('receiver_phone'),
+        order_date=_parse_csv_date(data.get('order_date'), with_time=True),
+        delivery_date=_parse_csv_date(data.get('delivery_date'), with_time=True),
+        production_date=_parse_csv_date(data.get('production_date')),
+        status=data.get('status') or 'active',
+    )
+    db.session.add(p)
+    db.session.commit()
+    return jsonify({'message': '创建成功', 'product': p.to_dict()}), 201
+
+
+@bp.route('/admin/products/<int:product_id>', methods=['DELETE'])
+@login_required
+@role_required('admin', 'operator')
+def admin_delete_product(product_id):
+    """删除单条产品记录（同时解除用户绑定 UserProduct）"""
+    from app.models.product import UserProduct
+    p = Product.query.get_or_404(product_id)
+    UserProduct.query.filter_by(product_id=product_id).delete()
+    db.session.delete(p)
+    db.session.commit()
+    return jsonify({'message': '删除成功'})
+
+
+@bp.route('/admin/products/<int:product_id>', methods=['PUT'])
+@login_required
+@role_required('admin', 'operator')
+def admin_update_product(product_id):
+    """更新产品字段"""
+    p = Product.query.get_or_404(product_id)
+    data = request.get_json() or {}
+    updatable = [
+        'sales_no', 'customer_name', 'dealer_name', 'dealer_contact',
+        'dealer_phone', 'product_no', 'product_name', 'shipping_address',
+        'qr_code', 'receiver', 'receiver_phone', 'status',
+    ]
+    for k in updatable:
+        if k in data:
+            setattr(p, k, data[k] or None)
+    for k in ('order_date', 'delivery_date'):
+        if k in data:
+            setattr(p, k, _parse_csv_date(data[k], with_time=True))
+    if 'production_date' in data:
+        p.production_date = _parse_csv_date(data['production_date'])
+    db.session.commit()
+    return jsonify({'message': '更新成功', 'product': p.to_dict()})
+
+
+@bp.route('/admin/products/import', methods=['POST'])
+@login_required
+@role_required('admin', 'operator')
+def admin_import_products():
+    """从 CSV 文件批量导入产品库。
+    上传字段名：file（multipart/form-data）。
+    CSV 列名（销售订单 17_19 格式）：
+        销售单号,客户名称,经销商名称,经销商联系人,经销商电话,
+        产品编号,产品名称,发货地址,二维码,收货人,联系电话,
+        下单日期,交货日期,生产日期
+    返回：
+        { inserted: int, skipped: [{row, qr_code, reason}],
+          errors: [{row, reason}], total: int }
+    """
+    if 'file' not in request.files:
+        return jsonify({'error': '请上传 CSV 文件（字段名 file）'}), 400
+
+    f = request.files['file']
+    if not f or not f.filename:
+        return jsonify({'error': '文件为空'}), 400
+    if not f.filename.lower().endswith('.csv'):
+        return jsonify({'error': '文件必须是 .csv 格式'}), 400
+
+    raw = f.read()
+    # 去掉 UTF-8 BOM
+    try:
+        text = raw.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        text = raw.decode('gbk', errors='ignore')
+
+    reader = csv.DictReader(io.StringIO(text))
+    required_keys = ('销售单号', '二维码')
+    if not reader.fieldnames or not any(k in (reader.fieldnames or []) for k in required_keys):
+        return jsonify({
+            'error': 'CSV 表头缺少必要列（需要 含"销售单号"和"二维码" 的列）',
+            'columns_found': reader.fieldnames,
+        }), 400
+
+    inserted = 0
+    skipped = []
+    errors = []
+    seen_qr_in_file = set()
+    existing_qr = {p.qr_code for p in Product.query.with_entities(Product.qr_code)
+                   .filter(Product.qr_code.isnot(None)).all()}
+
+    for idx, row in enumerate(reader, start=2):
+        try:
+            data = _coerce_csv_row(row)
+            qr = data.get('qr_code')
+            if not qr:
+                errors.append({'row': idx, 'reason': '缺少二维码'})
+                continue
+            if qr in existing_qr or qr in seen_qr_in_file:
+                skipped.append({'row': idx, 'qr_code': qr, 'reason': '二维码重复'})
+                continue
+            p = Product(**data)
+            db.session.add(p)
+            db.session.flush()
+            seen_qr_in_file.add(qr)
+            existing_qr.add(qr)
+            inserted += 1
+        except Exception as e:
+            db.session.rollback()
+            errors.append({'row': idx, 'reason': str(e)[:200]})
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'提交失败: {e}'}), 500
+
+    return jsonify({
+        'inserted': inserted,
+        'skipped': skipped,
+        'errors': errors,
+        'total': inserted + len(skipped) + len(errors),
+        'filename': f.filename,
+    })
