@@ -80,7 +80,8 @@
       v-model="showCreate"
       title="新建产品记录"
       show-cancel-button
-      :before-close="onCreateBeforeClose"
+      @confirm="submitCreate"
+      @cancel="onCancelCreate"
     >
       <div class="create-form">
         <van-field v-model="form.sales_no" label="销售单号" placeholder="如 0050384274" />
@@ -180,17 +181,16 @@ export default {
       this.form = emptyForm()
       this.showCreate = true
     },
-    onCreateBeforeClose(action) {
-      // 'confirm' = 点击确认；return false 阻止关闭
-      if (action === 'confirm') {
-        return this.submitCreate()
-      }
-      return true
+    onCancelCreate() {
+      // 点"取消"或点遮罩：直接关闭 dialog
+      this.showCreate = false
     },
     async submitCreate() {
+      // 注意: 不再依赖 :before-close 钩子（vant 收到 async Promise 会卡死）
+      // 改为 @confirm 调用，成功时手动关 dialog，失败时保持打开让用户重试
       if (!this.form.qr_code || !this.form.qr_code.trim()) {
         this.$toast('请填写二维码')
-        return false
+        return
       }
       try {
         const payload = {}
@@ -202,11 +202,10 @@ export default {
         this.$toast.success('创建成功')
         this.showCreate = false
         this.loadProducts()
-        return true
       } catch (e) {
         const msg = (e && e.response && e.response.data && e.response.data.error) || '创建失败'
         this.$toast(msg)
-        return false
+        // 失败时不关 dialog，让用户修改重试
       }
     },
     async removeProduct(p) {
