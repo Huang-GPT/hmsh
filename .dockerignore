@@ -1,0 +1,56 @@
+# ============================================================
+#  Docker build context exclusions
+#  防止本机 node_modules / venv / .git 等被 COPY 进镜像
+# ============================================================
+
+# Node
+**/node_modules
+**/npm-debug.log*
+
+# Python
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.pytest_cache
+**/venv
+**/venv/**
+backend/venv
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE / 编辑器
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+
+# 测试 / 临时
+**/coverage
+**/.cache
+**/dist/.cache
+
+# 文档（构建不需要）
+docs/
+*.md
+!backend/**/*.md
+
+# 部署相关（运行时才有意义）
+deploy.bat
+deploy.ps1
+deploy.sh
+backup.ps1
+backup.sh
+restore.ps1
+restore.sh
+.env
+.env.production
+.env.example
+backups/
+
+# 数据 / 卷
+data/
+ssl/

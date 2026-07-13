@@ -173,7 +173,7 @@ export default {
         this.showDetailDialog = false
         this.loadOrders()
       } catch (e) {
-        this.$toast(e?.response?.data?.error || '操作失败')
+        this.$toast((e && e.response && e.response.data && e.response.data.error) || '操作失败')
       }
     },
     async completeOrder() {
@@ -183,7 +183,7 @@ export default {
         this.showDetailDialog = false
         this.loadOrders()
       } catch (e) {
-        this.$toast(e?.response?.data?.error || '操作失败')
+        this.$toast((e && e.response && e.response.data && e.response.data.error) || '操作失败')
       }
     },
     async confirmCompleted() {
@@ -193,7 +193,7 @@ export default {
         this.showDetailDialog = false
         this.loadOrders()
       } catch (e) {
-        this.$toast(e?.response?.data?.error || '操作失败')
+        this.$toast((e && e.response && e.response.data && e.response.data.error) || '操作失败')
       }
     },
     async rejectCurrent() {
@@ -205,7 +205,7 @@ export default {
         this.showDetailDialog = false
         this.loadOrders()
       } catch (e) {
-        this.$toast(e?.response?.data?.error || '操作失败')
+        this.$toast((e && e.response && e.response.data && e.response.data.error) || '操作失败')
       }
     }
   }

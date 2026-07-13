@@ -2,10 +2,17 @@ FROM node:16-alpine AS builder
 
 WORKDIR /app
 
-COPY frontend/package*.json ./
-RUN npm install
+# Copy all frontend source. .dockerignore excludes node_modules
+# and any local artifacts so the COPY never overwrites the
+# freshly-installed node_modules below.
+COPY frontend/ ./
 
-COPY frontend/ .
+# Install dependencies. chmod +x on .bin defends against
+# rare alpine base images where npm-installed CLI wrappers
+# lose the executable bit.
+RUN npm install \
+    && chmod -R +x node_modules/.bin
+
 RUN npm run build
 
 FROM nginx:alpine

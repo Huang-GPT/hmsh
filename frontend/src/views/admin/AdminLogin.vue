@@ -2,7 +2,21 @@
   <div class="admin-login">
     <div class="login-card">
       <h2>红门售后管理系统</h2>
-      <van-field v-model="openid" label="管理员账号" placeholder="请输入管理员账号" left-icon="manager-o" />
+      <van-field
+        v-model="account"
+        label="管理员账号"
+        placeholder="请输入管理员账号"
+        left-icon="manager-o"
+        autocomplete="username"
+      />
+      <van-field
+        v-model="password"
+        type="password"
+        label="密码"
+        placeholder="请输入密码"
+        left-icon="lock"
+        autocomplete="current-password"
+      />
       <div class="login-btn">
         <van-button type="info" block @click="handleLogin" :loading="loading">登 录</van-button>
       </div>
@@ -17,24 +31,29 @@ export default {
   name: 'AdminLogin',
   data() {
     return {
-      openid: '',
+      account: '',
+      password: '',
       loading: false
     }
   },
   methods: {
     async handleLogin() {
-      if (!this.openid) {
+      if (!this.account) {
         this.$toast('请输入管理员账号')
+        return
+      }
+      if (!this.password) {
+        this.$toast('请输入密码')
         return
       }
       this.loading = true
       try {
-        const res = await adminLogin(this.openid)
+        const res = await adminLogin(this.account, this.password)
         const user = res.data.user
         localStorage.setItem('admin_user', JSON.stringify(user))
         this.$router.push('/admin/dashboard')
       } catch (e) {
-        const msg = (e.response && e.response.data && e.response.data.error) || '登录失败'
+        const msg = (e && e.response && e.response.data && e.response.data.error) || '登录失败'
         this.$toast(msg)
       }
       this.loading = false

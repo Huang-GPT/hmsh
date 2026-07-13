@@ -67,7 +67,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:5000/api/health/ready"]
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.settimeout(3); s.connect(('localhost',5000)); s.close()\""]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -80,7 +80,7 @@ services:
 
   # ----- MySQL -----
   db:
-    image: mysql:8.0
+    image: ${MYSQL_IMAGE:-mysql:8.0}
     container_name: hongmen-db
     restart: unless-stopped
     # 生产：DB 不应直接对外暴露
@@ -119,7 +119,7 @@ services:
 
   # ----- Redis -----
   redis:
-    image: redis:7-alpine
+    image: ${REDIS_IMAGE:-redis:7-alpine}
     container_name: hongmen-redis
     restart: unless-stopped
     # 生产：Redis 同样不应直接对外
@@ -127,18 +127,13 @@ services:
     #   - "${HOST_PORT_REDIS:-16379}:${CONTAINER_PORT_REDIS:-6379}"
     expose:
       - "${CONTAINER_PORT_REDIS:-6379}"
-    command: >
-      redis-server
-        --appendonly yes
-        --maxmemory 256mb
-        --maxmemory-policy allkeys-lru
-        --requirepass ${REDIS_PASSWORD:-}
+    command: "sh -c 'exec redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru $${REDIS_PASSWORD:+--requirepass $$REDIS_PASSWORD}'"
     volumes:
       - redis_data:/data
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+-a \"$REDIS_PASSWORD\"} ping | grep -q PONG"]
       interval: 15s
       timeout: 5s
       retries: 5

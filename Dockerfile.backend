@@ -3,26 +3,27 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_ONLY_BINARY=:all:
 
 WORKDIR /app
 
-# 系统依赖（mysqlclient 编译需要）
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        gcc \
-        default-libmysqlclient-dev \
-        pkg-config \
-    && rm -rf /var/lib/apt/lists/*
-
-# 先装依赖（利用 Docker 缓存）
+# pip will pick prebuilt manylinux wheels for cryptography,
+# bcrypt, pymysql etc. on this slim image. We previously
+# installed gcc / default-libmysqlclient-dev / pkg-config to
+# build them from source, but on small Aliyun ECS instances
+# the apt step is killed (exit 137, OOM) and the build never
+# reaches pip install.
+#
+# Forcing PIP_ONLY_BINARY=:all: keeps the image lean, avoids
+# the 60+ MB gcc toolchain download, and survives low-memory
+# hosts.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
-    && apt-get purge -y --auto-remove gcc pkg-config
+RUN pip install --no-cache-dir -r requirements.txt
 
 # 复制应用
 COPY . .
 
-# Gunicorn 用配置文件启动（非 flask run）
 EXPOSE 5000
 
 CMD ["gunicorn", "-c", "gunicorn.conf.py", "app:create_app()"]

@@ -241,17 +241,76 @@ do_reset() {
     ok "已删除所有数据卷"
 }
 
+# ----- 创建第一个管理员 -----
+do_bootstrap() {
+    BACKEND_PORT="${HOST_PORT_BACKEND:-15000}"
+    URL="http://localhost:${BACKEND_PORT}/api/auth/bootstrap"
+
+    echo ""
+    echo "创建第一个管理员账号"
+    echo "POST ${URL}"
+    echo ""
+    read -p "账号 [默认 admin]: " ACCOUNT
+    ACCOUNT="${ACCOUNT:-admin}"
+    read -s -p "密码: " PASSWORD
+    echo
+    if [ -z "$PASSWORD" ]; then
+        err "密码不能为空"
+        return 1
+    fi
+    read -p "昵称 [默认 系统管理员]: " NICKNAME
+    NICKNAME="${NICKNAME:-系统管理员}"
+
+    BODY=$(printf '{"account":"%s","password":"%s","nickname":"%s"}' \
+        "$ACCOUNT" "$PASSWORD" "$NICKNAME")
+
+    RESP=$(curl -s -o /tmp/hongmen_bootstrap.json -w "%{http_code}" \
+        -X POST -H "Content-Type: application/json" \
+        -d "$BODY" "$URL")
+    BODY_RESP=$(cat /tmp/hongmen_bootstrap.json)
+    rm -f /tmp/hongmen_bootstrap.json
+
+    if [ "$RESP" = "200" ]; then
+        ok "管理员创建成功: $ACCOUNT"
+        echo "现在可以登录: http://localhost:${HOST_PORT_FRONTEND:-18080}/admin/login"
+    elif echo "$BODY_RESP" | grep -q "管理员已存在"; then
+        warn "管理员已存在，请直接登录"
+    else
+        err "创建失败 (HTTP $RESP): $BODY_RESP"
+        return 1
+    fi
+}
+
+# ----- 环境检查（不启动任何东西） -----
+do_check() {
+    info "检查 Docker..."
+    if ! command -v docker >/dev/null 2>&1; then
+        err "未安装 docker"
+        return 1
+    fi
+    if ! docker info >/dev/null 2>&1; then
+        err "Docker Desktop / dockerd 未运行"
+        return 1
+    fi
+    ok "Docker 已运行"
+    $COMPOSE_CMD version >/dev/null && ok "$COMPOSE_CMD 可用" || err "$COMPOSE_CMD 不可用"
+    info "当前容器状态:"
+    $COMPOSE_CMD ps 2>/dev/null || echo "  (compose 不可用，跳过)"
+}
+
 # ----- 主入口 -----
 cmd="${1:-deploy}"
 shift || true
 
 case "$cmd" in
-    deploy)   do_deploy ;;
-    status)   do_status ;;
-    logs)     do_logs "$@" ;;
-    stop)     do_stop ;;
-    restart)  do_restart ;;
-    update)   do_update ;;
-    reset)    do_reset ;;
-    *)        err "未知命令: $cmd"; echo "用法: $0 {deploy|status|logs|stop|restart|update|reset}"; exit 1 ;;
+    deploy)    do_deploy ;;
+    status)    do_status ;;
+    logs)      do_logs "$@" ;;
+    stop)      do_stop ;;
+    restart)   do_restart ;;
+    update)    do_update ;;
+    reset)     do_reset ;;
+    bootstrap) do_bootstrap ;;
+    check)     do_check ;;
+    *)         err "未知命令: $cmd"; echo "用法: $0 {deploy|status|logs|stop|restart|update|reset|bootstrap|check}"; exit 1 ;;
 esac
