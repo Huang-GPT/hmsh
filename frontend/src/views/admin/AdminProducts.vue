@@ -203,8 +203,12 @@ export default {
         this.showCreate = false
         this.loadProducts()
       } catch (e) {
-        const msg = (e && e.response && e.response.data && e.response.data.error) || '创建失败'
-        this.$toast(msg)
+        const data = e && e.response && e.response.data
+        const err = (data && data.error) || '创建失败'
+        const detail = (data && data.detail) || ''
+        const hint = (data && data.hint) || ''
+        this.$toast(detail ? err + '：' + detail : err)
+        console.error('[admin/products POST]', e.response && e.response.data, hint)
         // 失败时不关 dialog，让用户修改重试
       }
     },
