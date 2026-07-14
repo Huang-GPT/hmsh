@@ -583,40 +583,40 @@ def admin_create_product():
     if not qr:
         return jsonify({'error': '缺少二维码 qr_code'}), 400
 
-    # qr_code 唯一
-    if Product.query.filter_by(qr_code=qr).first():
-        return jsonify({'error': f'二维码 {qr} 已存在'}), 400
-
-    p = Product(
-        sales_no=data.get('sales_no'),
-        customer_name=data.get('customer_name'),
-        dealer_name=data.get('dealer_name'),
-        dealer_contact=data.get('dealer_contact'),
-        dealer_phone=data.get('dealer_phone'),
-        product_no=data.get('product_no'),
-        product_name=data.get('product_name') or data.get('model'),
-        model=data.get('model') or data.get('product_name'),
-        shipping_address=data.get('shipping_address'),
-        qr_code=qr,
-        receiver=data.get('receiver'),
-        receiver_phone=data.get('receiver_phone'),
-        order_date=_parse_csv_date(data.get('order_date'), with_time=True),
-        delivery_date=_parse_csv_date(data.get('delivery_date'), with_time=True),
-        production_date=_parse_csv_date(data.get('production_date')),
-        status=data.get('status') or 'active',
-    )
     try:
+        # qr_code 唯一（可能因表缺列抛异常，放 try 里）
+        exists = Product.query.filter_by(qr_code=qr).first()
+        if exists:
+            return jsonify({'error': f'二维码 {qr} 已存在'}), 400
+
+        p = Product(
+            sales_no=data.get('sales_no'),
+            customer_name=data.get('customer_name'),
+            dealer_name=data.get('dealer_name'),
+            dealer_contact=data.get('dealer_contact'),
+            dealer_phone=data.get('dealer_phone'),
+            product_no=data.get('product_no'),
+            product_name=data.get('product_name') or data.get('model'),
+            model=data.get('model') or data.get('product_name'),
+            shipping_address=data.get('shipping_address'),
+            qr_code=qr,
+            receiver=data.get('receiver'),
+            receiver_phone=data.get('receiver_phone'),
+            order_date=_parse_csv_date(data.get('order_date'), with_time=True),
+            delivery_date=_parse_csv_date(data.get('delivery_date'), with_time=True),
+            production_date=_parse_csv_date(data.get('production_date')),
+            status=data.get('status') or 'active',
+        )
         db.session.add(p)
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        # 把真实错误返回给前端（方便排查 schema 不匹配等问题）
         return jsonify({
-            'error': '数据库写入失败',
+            'error': '写入失败',
             'detail': str(e)[:500],
-            'hint': '多半是 products 表缺字段。服务器跑: '
-                    '`bash fix-80-port.sh --proxy` 的同款 ALTER TABLE 加字段, '
-                    '或重置数据卷让 init.sql 重建表'
+            'hint': '服务器跑: docker exec hongmen-db mysql -uroot -phongmen123 '
+                    'hongmen_after_sales -e "ALTER TABLE products ADD COLUMN '
+                    'sales_no VARCHAR(32)" …（补全所有新字段）'
         }), 500
     return jsonify({'message': '创建成功', 'product': p.to_dict()}), 201
 
