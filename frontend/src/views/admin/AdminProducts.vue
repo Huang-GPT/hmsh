@@ -143,15 +143,17 @@
     </van-dialog>
 
     <!-- 日期选择器 -->
-    <van-popup v-model="showDatePicker" position="bottom" round :style="{ height: '50%' }">
-      <van-date-picker
-        v-model="datePickerValue"
-        title="选择日期"
-        :min-date="minDate"
-        :max-date="maxDate"
-        @confirm="onDatePickerConfirm"
-        @cancel="showDatePicker = false"
-      />
+    <van-popup v-model="showDatePicker" position="bottom" round>
+      <div class="date-picker-wrap">
+        <van-date-picker
+          v-model="datePickerValue"
+          title="选择日期"
+          :min-date="minDate"
+          :max-date="maxDate"
+          @confirm="onDatePickerConfirm"
+          @cancel="showDatePicker = false"
+        />
+      </div>
     </van-popup>
   </div>
 </template>
@@ -192,7 +194,10 @@ export default {
 
       showDatePicker: false,
       datePickerTarget: null,
-      datePickerValue: [],
+      datePickerValue: (() => {
+        const t = new Date()
+        return [t.getFullYear(), t.getMonth() + 1, t.getDate()]
+      })(),
       minDate: new Date(2000, 0, 1),
       maxDate: new Date(2099, 11, 31),
     }
@@ -475,6 +480,10 @@ export default {
 .preview-row .value.qr-code {
   font-family: monospace;
   color: #1989fa;
+}
+.date-picker-wrap {
+  /* 确保 van-popup 内的 date-picker 有足够高度，否则 picker 可能渲染为空白 */
+  min-height: 280px;
 }
 .import-result {
   padding: 16px;
