@@ -142,9 +142,9 @@
       </div>
     </van-dialog>
 
-    <!-- 日期选择器 -->
-    <van-popup v-model="showDatePicker" position="bottom" round>
-      <div class="date-picker-wrap">
+    <!-- 日期选择器（自渲染覆盖层，避免 van-popup 在 dialog 内被遮） -->
+    <div v-if="showDatePicker" class="date-overlay" @click.self="showDatePicker = false">
+      <div class="date-panel">
         <van-date-picker
           v-model="datePickerValue"
           title="选择日期"
@@ -154,7 +154,7 @@
           @cancel="showDatePicker = false"
         />
       </div>
-    </van-popup>
+    </div>
   </div>
 </template>
 
@@ -482,8 +482,26 @@ export default {
   color: #1989fa;
 }
 .date-picker-wrap {
-  /* 确保 van-popup 内的 date-picker 有足够高度，否则 picker 可能渲染为空白 */
+  /* 兼容老样式，无实际作用 */
   min-height: 280px;
+}
+.date-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 99999;
+  display: flex;
+  align-items: flex-end;
+}
+.date-panel {
+  width: 100%;
+  background: #fff;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  overflow: hidden;
 }
 .import-result {
   padding: 16px;
