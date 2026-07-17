@@ -104,9 +104,9 @@
         />
         <van-field v-model="form.receiver" label="收货人" />
         <van-field v-model="form.receiver_phone" label="联系电话" />
-        <van-field v-model="form.order_date" label="下单日期" placeholder="YYYY-MM-DD HH:mm:ss" />
-        <van-field v-model="form.delivery_date" label="交货日期" placeholder="YYYY-MM-DD HH:mm:ss" />
-        <van-field v-model="form.production_date" label="生产日期" placeholder="YYYY-MM-DD" />
+        <van-cell title="下单日期" :value="form.order_date || '点击选择'" is-link @click="openDatePicker('order_date')" />
+        <van-cell title="交货日期" :value="form.delivery_date || '点击选择'" is-link @click="openDatePicker('delivery_date')" />
+        <van-cell title="生产日期" :value="form.production_date || '点击选择'" is-link @click="openDatePicker('production_date')" />
       </div>
     </van-dialog>
 
@@ -141,6 +141,18 @@
         </span></div>
       </div>
     </van-dialog>
+
+    <!-- 日期选择器 -->
+    <van-popup v-model="showDatePicker" position="bottom" round :style="{ height: '50%' }">
+      <van-date-picker
+        v-model="datePickerValue"
+        title="选择日期"
+        :min-date="minDate"
+        :max-date="maxDate"
+        @confirm="onDatePickerConfirm"
+        @cancel="showDatePicker = false"
+      />
+    </van-popup>
   </div>
 </template>
 
@@ -177,6 +189,12 @@ export default {
 
       showImportResult: false,
       lastImport: { inserted: 0, skipped: [], errors: [], total: 0, filename: '' },
+
+      showDatePicker: false,
+      datePickerTarget: null,
+      datePickerValue: [],
+      minDate: new Date(2000, 0, 1),
+      maxDate: new Date(2099, 11, 31),
     }
   },
   computed: {
@@ -223,10 +241,10 @@ export default {
       this.showCreate = true
     },
     editProduct(p) {
-      // 把后端 ISO 时间格式转成表单可读格式（"2026-07-06T10:44:15" -> "2026-07-06 10:44:15"）
+      // 把后端 ISO 时间格式转成 YYYY-MM-DD（去时间部分，因为 picker 只到日）
       const toFormDate = (s) => {
         if (!s) return ''
-        return String(s).replace('T', ' ').substring(0, 19)
+        return String(s).substring(0, 10)
       }
       this.editingProduct = p
       this.form = {
@@ -243,13 +261,38 @@ export default {
         receiver_phone: p.receiver_phone || '',
         order_date: toFormDate(p.order_date),
         delivery_date: toFormDate(p.delivery_date),
-        production_date: toFormDate(p.production_date).substring(0, 10),
+        production_date: toFormDate(p.production_date),
       }
       this.showCreate = true
     },
     previewProduct(p) {
       this.previewingProduct = p
       this.showPreview = true
+    },
+    openDatePicker(field) {
+      this.datePickerTarget = field
+      const cur = this.form[field]
+      const m = cur && String(cur).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+      if (m) {
+        this.datePickerValue = [Number(m[1]), Number(m[2]), Number(m[3])]
+      } else {
+        const today = new Date()
+        this.datePickerValue = [
+          today.getFullYear(),
+          today.getMonth() + 1,
+          today.getDate(),
+        ]
+      }
+      this.showDatePicker = true
+    },
+    onDatePickerConfirm({ selectedValues }) {
+      if (this.datePickerTarget && selectedValues && selectedValues.length >= 3) {
+        const [y, mo, d] = selectedValues
+        const pad = (n) => String(n).padStart(2, '0')
+        this.form[this.datePickerTarget] = `${y}-${pad(mo)}-${pad(d)}`
+      }
+      this.showDatePicker = false
+      this.datePickerTarget = null
     },
     onCancelCreate() {
       // 点"取消"或点遮罩：直接关闭 dialog

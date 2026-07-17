@@ -602,8 +602,8 @@ def admin_create_product():
             qr_code=qr,
             receiver=data.get('receiver'),
             receiver_phone=data.get('receiver_phone'),
-            order_date=_parse_csv_date(data.get('order_date'), with_time=True),
-            delivery_date=_parse_csv_date(data.get('delivery_date'), with_time=True),
+            order_date=_parse_csv_date(data.get('order_date')),
+            delivery_date=_parse_csv_date(data.get('delivery_date')),
             production_date=_parse_csv_date(data.get('production_date')),
             status=data.get('status') or 'active',
         )
@@ -651,7 +651,7 @@ def admin_update_product(product_id):
             setattr(p, k, data[k] or None)
     for k in ('order_date', 'delivery_date'):
         if k in data:
-            setattr(p, k, _parse_csv_date(data[k], with_time=True))
+            setattr(p, k, _parse_csv_date(data[k]))
     if 'production_date' in data:
         p.production_date = _parse_csv_date(data['production_date'])
     db.session.commit()
