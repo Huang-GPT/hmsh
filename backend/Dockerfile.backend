@@ -1,0 +1,39 @@
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_ONLY_BINARY=:all:
+
+WORKDIR /app
+
+# pip will pick prebuilt manylinux wheels for cryptography,
+# bcrypt, pymysql etc. on this slim image. We previously
+# installed gcc / default-libmysqlclient-dev / pkg-config to
+# build them from source, but on small Aliyun ECS instances
+# the apt step is killed (exit 137, OOM) and the build never
+# reaches pip install.
+#
+# Forcing PIP_ONLY_BINARY=:all: keeps the image lean, avoids
+# the 60+ MB gcc toolchain download, and survives low-memory
+# hosts.
+#
+# Aliyun ECS -> pypi.org is flaky: each rebuild fails on a
+# different package (SQLAlchemy one time, cryptography the next)
+# with 'from versions: none'. Using the Aliyun PyPI mirror
+# which sits inside the Aliyun network and is far more reliable
+# from this ECS.
+COPY requirements.txt .
+RUN pip install --no-cache-dir \
+    -i https://mirrors.aliyun.com/pypi/simple/ \
+    --trusted-host mirrors.aliyun.com \
+    --retries 5 --timeout 60 \
+    -r requirements.txt
+
+# 复制应用
+COPY . .
+
+EXPOSE 5000
+
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "app:create_app()"]
