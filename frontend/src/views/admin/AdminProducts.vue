@@ -39,7 +39,11 @@
           </div>
         </template>
         <template #right-icon>
-          <van-button size="mini" type="danger" plain @click="removeProduct(p)">删除</van-button>
+          <div class="row-actions">
+            <van-button size="mini" plain @click="previewProduct(p)">查看</van-button>
+            <van-button size="mini" type="primary" plain @click="editProduct(p)">编辑</van-button>
+            <van-button size="mini" type="danger" plain @click="removeProduct(p)">删除</van-button>
+          </div>
         </template>
       </van-cell>
     </van-cell-group>
@@ -75,10 +79,10 @@
       </div>
     </van-dialog>
 
-    <!-- 新建产品弹窗 -->
+    <!-- 新建/编辑产品弹窗 -->
     <van-dialog
       v-model="showCreate"
-      title="新建产品记录"
+      :title="editingProduct ? '编辑产品记录' : '新建产品记录'"
       show-cancel-button
       @confirm="submitCreate"
       @cancel="onCancelCreate"
@@ -105,12 +109,44 @@
         <van-field v-model="form.production_date" label="生产日期" placeholder="YYYY-MM-DD" />
       </div>
     </van-dialog>
+
+    <!-- 查看产品详情弹窗 -->
+    <van-dialog
+      v-model="showPreview"
+      title="产品详情"
+      :show-confirm-button="false"
+      cancel-button-text="关闭"
+      close-on-click-overlay
+    >
+      <div class="preview-form" v-if="previewingProduct">
+        <div class="preview-row"><span class="label">产品 ID</span><span class="value">#{{ previewingProduct.id }}</span></div>
+        <div class="preview-row"><span class="label">销售单号</span><span class="value">{{ previewingProduct.sales_no || '—' }}</span></div>
+        <div class="preview-row"><span class="label">客户名称</span><span class="value">{{ previewingProduct.customer_name || '—' }}</span></div>
+        <div class="preview-row"><span class="label">经销商</span><span class="value">{{ previewingProduct.dealer_name || '—' }}</span></div>
+        <div class="preview-row"><span class="label">经销商联系人</span><span class="value">{{ previewingProduct.dealer_contact || '—' }}</span></div>
+        <div class="preview-row"><span class="label">经销商电话</span><span class="value">{{ previewingProduct.dealer_phone || '—' }}</span></div>
+        <div class="preview-row"><span class="label">产品编号</span><span class="value">{{ previewingProduct.product_no || '—' }}</span></div>
+        <div class="preview-row"><span class="label">产品名称</span><span class="value">{{ previewingProduct.product_name || previewingProduct.model || '—' }}</span></div>
+        <div class="preview-row"><span class="label">发货地址</span><span class="value">{{ previewingProduct.shipping_address || '—' }}</span></div>
+        <div class="preview-row"><span class="label">二维码</span><span class="value qr-code">{{ previewingProduct.qr_code || '—' }}</span></div>
+        <div class="preview-row"><span class="label">收货人</span><span class="value">{{ previewingProduct.receiver || '—' }}</span></div>
+        <div class="preview-row"><span class="label">收货电话</span><span class="value">{{ previewingProduct.receiver_phone || '—' }}</span></div>
+        <div class="preview-row"><span class="label">下单日期</span><span class="value">{{ formatDate(previewingProduct.order_date) }}</span></div>
+        <div class="preview-row"><span class="label">交货日期</span><span class="value">{{ formatDate(previewingProduct.delivery_date) }}</span></div>
+        <div class="preview-row"><span class="label">生产日期</span><span class="value">{{ formatDate(previewingProduct.production_date) }}</span></div>
+        <div class="preview-row"><span class="label">状态</span><span class="value">
+          <van-tag :type="previewingProduct.status === 'active' ? 'success' : 'danger'" size="mini">
+            {{ previewingProduct.status === 'active' ? '有效' : '无效' }}
+          </van-tag>
+        </span></div>
+      </div>
+    </van-dialog>
   </div>
 </template>
 
 <script>
 import {
-  getAllProducts, createProduct, deleteProduct, importProducts
+  getAllProducts, createProduct, updateProduct, deleteProduct, importProducts
 } from '@/api/admin'
 
 const emptyForm = () => ({
@@ -134,6 +170,10 @@ export default {
 
       showCreate: false,
       form: emptyForm(),
+      editingProduct: null,
+
+      showPreview: false,
+      previewingProduct: null,
 
       showImportResult: false,
       lastImport: { inserted: 0, skipped: [], errors: [], total: 0, filename: '' },
@@ -178,12 +218,43 @@ export default {
       this.loadProducts()
     },
     openCreate() {
+      this.editingProduct = null
       this.form = emptyForm()
       this.showCreate = true
+    },
+    editProduct(p) {
+      // 把后端 ISO 时间格式转成表单可读格式（"2026-07-06T10:44:15" -> "2026-07-06 10:44:15"）
+      const toFormDate = (s) => {
+        if (!s) return ''
+        return String(s).replace('T', ' ').substring(0, 19)
+      }
+      this.editingProduct = p
+      this.form = {
+        sales_no: p.sales_no || '',
+        customer_name: p.customer_name || '',
+        dealer_name: p.dealer_name || '',
+        dealer_contact: p.dealer_contact || '',
+        dealer_phone: p.dealer_phone || '',
+        product_no: p.product_no || '',
+        product_name: p.product_name || '',
+        shipping_address: p.shipping_address || '',
+        qr_code: p.qr_code || '',
+        receiver: p.receiver || '',
+        receiver_phone: p.receiver_phone || '',
+        order_date: toFormDate(p.order_date),
+        delivery_date: toFormDate(p.delivery_date),
+        production_date: toFormDate(p.production_date).substring(0, 10),
+      }
+      this.showCreate = true
+    },
+    previewProduct(p) {
+      this.previewingProduct = p
+      this.showPreview = true
     },
     onCancelCreate() {
       // 点"取消"或点遮罩：直接关闭 dialog
       this.showCreate = false
+      this.editingProduct = null
     },
     async submitCreate() {
       // 注意: 不再依赖 :before-close 钩子（vant 收到 async Promise 会卡死）
@@ -192,23 +263,30 @@ export default {
         this.$toast('请填写二维码')
         return
       }
+      const isEdit = !!this.editingProduct
       try {
         const payload = {}
         for (const k in this.form) {
           const v = this.form[k]
           payload[k] = (v && String(v).trim()) || null
         }
-        await createProduct(payload)
-        this.$toast.success('创建成功')
+        if (isEdit) {
+          await updateProduct(this.editingProduct.id, payload)
+          this.$toast.success('更新成功')
+        } else {
+          await createProduct(payload)
+          this.$toast.success('创建成功')
+        }
         this.showCreate = false
+        this.editingProduct = null
         this.loadProducts()
       } catch (e) {
         const data = e && e.response && e.response.data
-        const err = (data && data.error) || '创建失败'
+        const err = (data && data.error) || (isEdit ? '更新失败' : '创建失败')
         const detail = (data && data.detail) || ''
         const hint = (data && data.hint) || ''
         this.$toast(detail ? err + '：' + detail : err)
-        console.error('[admin/products POST]', e.response && e.response.data, hint)
+        console.error(`[admin/products ${isEdit ? 'PUT' : 'POST'}]`, e.response && e.response.data, hint)
         // 失败时不关 dialog，让用户修改重试
       }
     },
@@ -318,6 +396,42 @@ export default {
 .create-form {
   max-height: 60vh;
   overflow-y: auto;
+}
+.row-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+}
+.row-actions .van-button {
+  margin: 0;
+}
+.preview-form {
+  padding: 8px 16px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.preview-row {
+  display: flex;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+}
+.preview-row:last-child {
+  border-bottom: none;
+}
+.preview-row .label {
+  flex: 0 0 90px;
+  color: #999;
+}
+.preview-row .value {
+  flex: 1;
+  color: #333;
+  word-break: break-all;
+}
+.preview-row .value.qr-code {
+  font-family: monospace;
+  color: #1989fa;
 }
 .import-result {
   padding: 16px;
