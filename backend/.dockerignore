@@ -1,0 +1,42 @@
+# ============================================================
+#  Docker build context exclusions for backend
+#  docker-compose uses `context: ./backend` so this file
+#  MUST live in backend/ to be picked up.
+# ============================================================
+
+# Local Python venv (would bloat context by 70MB+)
+venv
+.venv
+env
+ENV
+
+# Bytecode / caches
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.coverage
+*.egg-info
+
+# Editor / OS
+.idea
+.vscode
+.DS_Store
+*.swp
+*.swo
+
+# Git inside the project (in case anyone inits here)
+.git
+
+# Env files (built image only needs baked-in defaults)
+.env
+.env.local
+
+# Tests / docs
+tests/
+docs/
+*.md
+
+# Logs
+*.log
