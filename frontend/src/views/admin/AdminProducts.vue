@@ -104,9 +104,30 @@
         />
         <van-field v-model="form.receiver" label="收货人" />
         <van-field v-model="form.receiver_phone" label="联系电话" />
-        <van-cell title="下单日期" :value="form.order_date || '点击选择'" is-link @click="openDatePicker('order_date')" />
-        <van-cell title="交货日期" :value="form.delivery_date || '点击选择'" is-link @click="openDatePicker('delivery_date')" />
-        <van-cell title="生产日期" :value="form.production_date || '点击选择'" is-link @click="openDatePicker('production_date')" />
+        <van-cell title="下单日期">
+          <input
+            type="date"
+            v-model="form.order_date"
+            class="date-input"
+            placeholder="点击选择日期"
+          />
+        </van-cell>
+        <van-cell title="交货日期">
+          <input
+            type="date"
+            v-model="form.delivery_date"
+            class="date-input"
+            placeholder="点击选择日期"
+          />
+        </van-cell>
+        <van-cell title="生产日期">
+          <input
+            type="date"
+            v-model="form.production_date"
+            class="date-input"
+            placeholder="点击选择日期"
+          />
+        </van-cell>
       </div>
     </van-dialog>
 
@@ -141,20 +162,6 @@
         </span></div>
       </div>
     </van-dialog>
-
-    <!-- 日期选择器（自渲染覆盖层，避免 van-popup 在 dialog 内被遮） -->
-    <div v-if="showDatePicker" class="date-overlay" @click.self="showDatePicker = false">
-      <div class="date-panel">
-        <van-date-picker
-          v-model="datePickerValue"
-          title="选择日期"
-          :min-date="minDate"
-          :max-date="maxDate"
-          @confirm="onDatePickerConfirm"
-          @cancel="showDatePicker = false"
-        />
-      </div>
-    </div>
   </div>
 </template>
 
@@ -191,15 +198,6 @@ export default {
 
       showImportResult: false,
       lastImport: { inserted: 0, skipped: [], errors: [], total: 0, filename: '' },
-
-      showDatePicker: false,
-      datePickerTarget: null,
-      datePickerValue: (() => {
-        const t = new Date()
-        return [t.getFullYear(), t.getMonth() + 1, t.getDate()]
-      })(),
-      minDate: new Date(2000, 0, 1),
-      maxDate: new Date(2099, 11, 31),
     }
   },
   computed: {
@@ -273,31 +271,6 @@ export default {
     previewProduct(p) {
       this.previewingProduct = p
       this.showPreview = true
-    },
-    openDatePicker(field) {
-      this.datePickerTarget = field
-      const cur = this.form[field]
-      const m = cur && String(cur).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
-      if (m) {
-        this.datePickerValue = [Number(m[1]), Number(m[2]), Number(m[3])]
-      } else {
-        const today = new Date()
-        this.datePickerValue = [
-          today.getFullYear(),
-          today.getMonth() + 1,
-          today.getDate(),
-        ]
-      }
-      this.showDatePicker = true
-    },
-    onDatePickerConfirm({ selectedValues }) {
-      if (this.datePickerTarget && selectedValues && selectedValues.length >= 3) {
-        const [y, mo, d] = selectedValues
-        const pad = (n) => String(n).padStart(2, '0')
-        this.form[this.datePickerTarget] = `${y}-${pad(mo)}-${pad(d)}`
-      }
-      this.showDatePicker = false
-      this.datePickerTarget = null
     },
     onCancelCreate() {
       // 点"取消"或点遮罩：直接关闭 dialog
@@ -481,27 +454,22 @@ export default {
   font-family: monospace;
   color: #1989fa;
 }
-.date-picker-wrap {
-  /* 兼容老样式，无实际作用 */
-  min-height: 280px;
+.date-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  text-align: right;
+  font-size: 14px;
+  color: #333;
+  width: 60%;
+  font-family: inherit;
 }
-.date-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 99999;
-  display: flex;
-  align-items: flex-end;
+.date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
 }
-.date-panel {
-  width: 100%;
-  background: #fff;
-  border-top-left-radius: 12px;
-  border-top-right-radius: 12px;
-  overflow: hidden;
+.date-input::placeholder {
+  color: #c8c9cc;
 }
 .import-result {
   padding: 16px;
