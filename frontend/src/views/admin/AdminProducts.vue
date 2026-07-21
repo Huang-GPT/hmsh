@@ -68,7 +68,7 @@
             <th>下单日期</th>
             <th>交货日期</th>
             <th>生产日期</th>
-            <th>保修日期</th>
+            <th>激活日期</th>
             <th>截至日期</th>
             <th>状态</th>
             <th class="col-actions sticky-right">操作</th>
@@ -112,7 +112,7 @@
             <td class="col-date">{{ formatDate(p.order_date) }}</td>
             <td class="col-date">{{ formatDate(p.delivery_date) }}</td>
             <td class="col-date">{{ formatDate(p.production_date) }}</td>
-            <td class="col-date">{{ formatDate(p.warranty_date) }}</td>
+            <td class="col-date">{{ formatDate(p.activation_date) }}</td>
             <td class="col-date">{{ formatDate(p.expiry_date) }}</td>
             <td>
               <van-tag :type="p.status === 'active' ? 'success' : 'danger'" size="mini">
@@ -172,7 +172,7 @@
             <tr><td>下单日期</td><td></td><td><code>2026-07-21</code> 或 <code>2026/7/21</code></td></tr>
             <tr><td>交货日期</td><td></td><td>同上</td></tr>
             <tr><td>生产日期</td><td></td><td>同上</td></tr>
-            <tr><td>保修日期</td><td></td><td>同上</td></tr>
+            <tr><td>激活日期</td><td></td><td>同上</td></tr>
             <tr><td>截至日期</td><td></td><td>同上</td></tr>
             <tr><td>状态</td><td></td><td><code>active</code> 或 <code>inactive</code>，默认 active</td></tr>
           </tbody>
@@ -238,8 +238,8 @@
         <van-cell title="生产日期">
           <input type="date" v-model="form.production_date" class="date-input" placeholder="点击选择日期" />
         </van-cell>
-        <van-cell title="保修日期">
-          <input type="date" v-model="form.warranty_date" class="date-input" placeholder="点击选择日期" />
+        <van-cell title="激活日期">
+          <input type="date" v-model="form.activation_date" class="date-input" placeholder="点击选择日期" />
         </van-cell>
         <van-cell title="截至日期">
           <input type="date" v-model="form.expiry_date" class="date-input" placeholder="点击选择日期" />
@@ -281,7 +281,7 @@
         <div class="preview-row"><span class="label">下单日期</span><span class="value">{{ formatDate(previewingProduct.order_date) }}</span></div>
         <div class="preview-row"><span class="label">交货日期</span><span class="value">{{ formatDate(previewingProduct.delivery_date) }}</span></div>
         <div class="preview-row"><span class="label">生产日期</span><span class="value">{{ formatDate(previewingProduct.production_date) }}</span></div>
-        <div class="preview-row"><span class="label">保修日期</span><span class="value">{{ formatDate(previewingProduct.warranty_date) }}</span></div>
+        <div class="preview-row"><span class="label">激活日期</span><span class="value">{{ formatDate(previewingProduct.activation_date) }}</span></div>
         <div class="preview-row"><span class="label">截至日期</span><span class="value">{{ formatDate(previewingProduct.expiry_date) }}</span></div>
         <div class="preview-row"><span class="label">行项目</span><span class="value">{{ previewingProduct.sap_line_item !== undefined && previewingProduct.sap_line_item !== null ? previewingProduct.sap_line_item : '—' }}</span></div>
         <div class="preview-row"><span class="label">状态</span><span class="value">
@@ -305,7 +305,7 @@ const emptyForm = () => ({
   product_no: '', product_name: '', shipping_address: '',
   qr_code: '', receiver: '', receiver_phone: '',
   order_date: '', delivery_date: '', production_date: '',
-  warranty_date: '', expiry_date: '',
+  activation_date: '', expiry_date: '',
   sap_line_item: null,
 })
 
@@ -412,7 +412,7 @@ export default {
         '二维码', '销售单号', '行项目', '客户名称', '经销商名称',
         '经销商联系人', '经销商电话', '产品编号', '产品名称',
         '发货地址', '收货人', '联系电话',
-        '下单日期', '交货日期', '生产日期', '保修日期', '截至日期', '状态',
+        '下单日期', '交货日期', '生产日期', '激活日期', '截至日期', '状态',
       ]
       const examples = [
         [
@@ -504,7 +504,7 @@ export default {
       const headers = [
         'ID', '行项目', '销售单号', '二维码', '客户名称', '经销商', '经销商联系人',
         '经销商电话', '产品编号', '产品名称', '发货地址', '收货人', '收货电话',
-        '下单日期', '交货日期', '生产日期', '保修日期', '截至日期', '状态',
+        '下单日期', '交货日期', '生产日期', '激活日期', '截至日期', '状态',
       ]
       const escape = (v) => {
         if (v === null || v === undefined) return ''
@@ -519,7 +519,7 @@ export default {
         this.formatDate(p.order_date),
         this.formatDate(p.delivery_date),
         this.formatDate(p.production_date),
-        this.formatDate(p.warranty_date),
+        this.formatDate(p.activation_date),
         this.formatDate(p.expiry_date),
         p.status,
       ].map(escape).join(','))
@@ -559,7 +559,7 @@ export default {
         order_date: toFormDate(p.order_date),
         delivery_date: toFormDate(p.delivery_date),
         production_date: toFormDate(p.production_date),
-        warranty_date: toFormDate(p.warranty_date),
+        activation_date: toFormDate(p.activation_date),
         expiry_date: toFormDate(p.expiry_date),
         // 避免 ?? 运算符（Babel 不支持）；用显式 null 检查，保证 0 仍被识别
         sap_line_item: (p.sap_line_item !== undefined && p.sap_line_item !== null) ? p.sap_line_item : null,

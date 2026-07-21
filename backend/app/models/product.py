@@ -37,7 +37,7 @@ class Product(db.Model):
     receiver_phone = db.Column(db.String(32), comment='联系电话')
     order_date = db.Column(db.DateTime, comment='下单日期')
     delivery_date = db.Column(db.DateTime, comment='交货日期')
-    warranty_date = db.Column(db.Date, comment='保修日期')
+    activation_date = db.Column(db.Date, comment='激活日期')
     expiry_date = db.Column(db.Date, comment='截至日期')
 
     def to_dict(self):
@@ -65,7 +65,7 @@ class Product(db.Model):
             'receiver_phone': self.receiver_phone,
             'order_date': self.order_date.isoformat() if self.order_date else None,
             'delivery_date': self.delivery_date.isoformat() if self.delivery_date else None,
-            'warranty_date': self.warranty_date.isoformat() if self.warranty_date else None,
+            'activation_date': self.activation_date.isoformat() if self.activation_date else None,
             'expiry_date': self.expiry_date.isoformat() if self.expiry_date else None,
         }
 

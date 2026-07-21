@@ -527,9 +527,13 @@ def _coerce_csv_row(row):
         v = str(v).strip()
         return v if v else None
 
-    # pick(中文, 英文) — 两个表头任选其一
-    def pick(cn, en):
-        return s(row.get(cn) if row.get(cn) not in (None, '') else row.get(en))
+    # pick(*keys) — 多个表头任选其一（向后兼容老 CSV 表头）
+    def pick(*keys):
+        for k in keys:
+            v = row.get(k)
+            if v is not None and str(v).strip():
+                return s(v)
+        return None
 
     return {
         'sales_no':         pick('销售单号', 'sales_no'),
@@ -547,7 +551,7 @@ def _coerce_csv_row(row):
         'order_date':       _parse_csv_date(pick('下单日期', 'order_date')),
         'delivery_date':    _parse_csv_date(pick('交货日期', 'delivery_date')),
         'production_date':  _parse_csv_date(pick('生产日期', 'production_date')),
-        'warranty_date':    _parse_csv_date(pick('保修日期', 'warranty_date')),
+        'activation_date':  _parse_csv_date(pick('激活日期', 'activation_date', '保修日期', 'warranty_date')),
         'expiry_date':      _parse_csv_date(pick('截至日期', 'expiry_date')),
         # 兼容老字段：product_name → model（CSV 没这列就用 product_name）
         'model':            pick('产品名称', 'product_name'),
@@ -622,7 +626,7 @@ def admin_create_product():
             delivery_date=_parse_csv_date(data.get('delivery_date')),
             production_date=_parse_csv_date(data.get('production_date')),
             sap_line_item=_parse_int(data.get('sap_line_item')),
-            warranty_date=_parse_csv_date(data.get('warranty_date')),
+            activation_date=_parse_csv_date(data.get('activation_date')),
             expiry_date=_parse_csv_date(data.get('expiry_date')),
             status=data.get('status') or 'active',
         )
@@ -668,7 +672,7 @@ def admin_update_product(product_id):
     for k in updatable:
         if k in data:
             setattr(p, k, data[k] or None)
-    for k in ('order_date', 'delivery_date', 'warranty_date', 'expiry_date'):
+    for k in ('order_date', 'delivery_date', 'activation_date', 'expiry_date'):
         if k in data:
             setattr(p, k, _parse_csv_date(data[k]))
     if 'production_date' in data:

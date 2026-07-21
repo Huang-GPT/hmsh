@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS products (
     receiver_phone VARCHAR(32) COMMENT '联系电话',
     order_date DATETIME COMMENT '下单日期',
     delivery_date DATETIME COMMENT '交货日期',
-    warranty_date DATE COMMENT '保修日期',
+    activation_date DATE COMMENT '激活日期',
     expiry_date DATE COMMENT '截至日期',
     INDEX idx_serial_number (serial_number),
     INDEX idx_qr_code (qr_code),
