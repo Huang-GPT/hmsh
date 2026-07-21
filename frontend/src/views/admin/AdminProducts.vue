@@ -98,7 +98,7 @@
               />
             </td>
             <td class="col-id">#{{ p.id }}</td>
-            <td class="col-int">{{ p.sap_line_item ?? '—' }}</td>
+            <td class="col-int">{{ p.sap_line_item !== undefined && p.sap_line_item !== null ? p.sap_line_item : '—' }}</td>
             <td>{{ p.sales_no || '—' }}</td>
             <td class="col-qr"><code>{{ p.qr_code || '—' }}</code></td>
             <td>{{ p.customer_name || '—' }}</td>
@@ -237,7 +237,7 @@
         <div class="preview-row"><span class="label">生产日期</span><span class="value">{{ formatDate(previewingProduct.production_date) }}</span></div>
         <div class="preview-row"><span class="label">保修日期</span><span class="value">{{ formatDate(previewingProduct.warranty_date) }}</span></div>
         <div class="preview-row"><span class="label">截至日期</span><span class="value">{{ formatDate(previewingProduct.expiry_date) }}</span></div>
-        <div class="preview-row"><span class="label">行项目</span><span class="value">{{ previewingProduct.sap_line_item ?? '—' }}</span></div>
+        <div class="preview-row"><span class="label">行项目</span><span class="value">{{ previewingProduct.sap_line_item !== undefined && previewingProduct.sap_line_item !== null ? previewingProduct.sap_line_item : '—' }}</span></div>
         <div class="preview-row"><span class="label">状态</span><span class="value">
           <van-tag :type="previewingProduct.status === 'active' ? 'success' : 'danger'" size="mini">
             {{ previewingProduct.status === 'active' ? '有效' : '无效' }}
@@ -463,7 +463,8 @@ export default {
         production_date: toFormDate(p.production_date),
         warranty_date: toFormDate(p.warranty_date),
         expiry_date: toFormDate(p.expiry_date),
-        sap_line_item: p.sap_line_item ?? null,
+        // 避免 ?? 运算符（Babel 不支持）；用显式 null 检查，保证 0 仍被识别
+        sap_line_item: (p.sap_line_item !== undefined && p.sap_line_item !== null) ? p.sap_line_item : null,
       }
       this.showCreate = true
     },
