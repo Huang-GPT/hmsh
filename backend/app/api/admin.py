@@ -521,30 +521,38 @@ def _parse_int(v):
 
 def _coerce_csv_row(row):
     """把 CSV 一行（dict）规范成 Product 字段 dict。
-       容错：缺列、空白、非法日期返回 None，不抛异常。"""
+       容错：缺列、空白、非法日期返回 None，不抛异常。
+       表头兼容中文（用户友好）和英文（DB 列名）。"""
     def s(v):
         if v is None:
             return None
         v = str(v).strip()
         return v if v else None
 
+    # pick(中文, 英文) — 两个表头任选其一
+    def pick(cn, en):
+        return s(row.get(cn) if row.get(cn) not in (None, '') else row.get(en))
+
     return {
-        'sales_no':         s(row.get('销售单号')),
-        'customer_name':    s(row.get('客户名称')),
-        'dealer_name':      s(row.get('经销商名称')),
-        'dealer_contact':   s(row.get('经销商联系人')),
-        'dealer_phone':     s(row.get('经销商电话')),
-        'product_no':       s(row.get('产品编号')),
-        'product_name':     s(row.get('产品名称')),
-        'shipping_address': s(row.get('发货地址')),
-        'qr_code':          s(row.get('二维码')),
-        'receiver':         s(row.get('收货人')),
-        'receiver_phone':   s(row.get('联系电话')),
-        'order_date':       _parse_csv_date(row.get('下单日期'), with_time=True),
-        'delivery_date':    _parse_csv_date(row.get('交货日期'), with_time=True),
-        'production_date':  _parse_csv_date(row.get('生产日期')),
+        'sales_no':         pick('销售单号', 'sales_no'),
+        'sap_line_item':    _parse_int(pick('行项目', 'sap_line_item')),
+        'customer_name':    pick('客户名称', 'customer_name'),
+        'dealer_name':      pick('经销商名称', 'dealer_name'),
+        'dealer_contact':   pick('经销商联系人', 'dealer_contact'),
+        'dealer_phone':     pick('经销商电话', 'dealer_phone'),
+        'product_no':       pick('产品编号', 'product_no'),
+        'product_name':     pick('产品名称', 'product_name'),
+        'shipping_address': pick('发货地址', 'shipping_address'),
+        'qr_code':          pick('二维码', 'qr_code'),
+        'receiver':         pick('收货人', 'receiver'),
+        'receiver_phone':   pick('联系电话', 'receiver_phone'),
+        'order_date':       _parse_csv_date(pick('下单日期', 'order_date'), with_time=True),
+        'delivery_date':    _parse_csv_date(pick('交货日期', 'delivery_date'), with_time=True),
+        'production_date':  _parse_csv_date(pick('生产日期', 'production_date')),
+        'warranty_date':    _parse_csv_date(pick('保修日期', 'warranty_date')),
+        'expiry_date':      _parse_csv_date(pick('截至日期', 'expiry_date')),
         # 兼容老字段：product_name → model（CSV 没这列就用 product_name）
-        'model':            s(row.get('产品名称')),
+        'model':            pick('产品名称', 'product_name'),
     }
 
 
