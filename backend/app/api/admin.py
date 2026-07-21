@@ -492,18 +492,16 @@ def get_order_detail(order_id):
 # ============================================================
 #  产品库（销售订单 17~19 CSV 导入格式）
 # ============================================================
-def _parse_csv_date(s, with_time=False):
-    """解析 '2026/7/6' 或 '2026/7/6 10:44:15'"""
+def _parse_csv_date(s):
+    """解析 '2026/7/6' 或 '2026/7/6 10:44:15'，返回 datetime 或 None。
+       所有日期列都是 DATE/DATETIME，datetime 落到 DATE 列由 MySQL 自动截断时分秒。"""
     if not s or not str(s).strip():
         return None
     s = str(s).strip()
     for fmt in ('%Y/%m/%d %H:%M:%S', '%Y-%m-%d %H:%M:%S',
                 '%Y/%m/%d', '%Y-%m-%d'):
         try:
-            d = datetime.strptime(s, fmt)
-            if '%H' not in fmt and with_time:
-                return None
-            return d
+            return datetime.strptime(s, fmt)
         except ValueError:
             continue
     return None
@@ -546,8 +544,8 @@ def _coerce_csv_row(row):
         'qr_code':          pick('二维码', 'qr_code'),
         'receiver':         pick('收货人', 'receiver'),
         'receiver_phone':   pick('联系电话', 'receiver_phone'),
-        'order_date':       _parse_csv_date(pick('下单日期', 'order_date'), with_time=True),
-        'delivery_date':    _parse_csv_date(pick('交货日期', 'delivery_date'), with_time=True),
+        'order_date':       _parse_csv_date(pick('下单日期', 'order_date')),
+        'delivery_date':    _parse_csv_date(pick('交货日期', 'delivery_date')),
         'production_date':  _parse_csv_date(pick('生产日期', 'production_date')),
         'warranty_date':    _parse_csv_date(pick('保修日期', 'warranty_date')),
         'expiry_date':      _parse_csv_date(pick('截至日期', 'expiry_date')),
