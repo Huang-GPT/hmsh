@@ -509,6 +509,16 @@ def _parse_csv_date(s, with_time=False):
     return None
 
 
+def _parse_int(v):
+    """把任意输入尽量转成整数，转不动返回 None。用于 SAP 行项目号。"""
+    if v is None or v == '':
+        return None
+    try:
+        return int(str(v).strip())
+    except (ValueError, TypeError):
+        return None
+
+
 def _coerce_csv_row(row):
     """把 CSV 一行（dict）规范成 Product 字段 dict。
        容错：缺列、空白、非法日期返回 None，不抛异常。"""
@@ -605,6 +615,9 @@ def admin_create_product():
             order_date=_parse_csv_date(data.get('order_date')),
             delivery_date=_parse_csv_date(data.get('delivery_date')),
             production_date=_parse_csv_date(data.get('production_date')),
+            sap_line_item=_parse_int(data.get('sap_line_item')),
+            warranty_date=_parse_csv_date(data.get('warranty_date')),
+            expiry_date=_parse_csv_date(data.get('expiry_date')),
             status=data.get('status') or 'active',
         )
         db.session.add(p)
@@ -649,11 +662,13 @@ def admin_update_product(product_id):
     for k in updatable:
         if k in data:
             setattr(p, k, data[k] or None)
-    for k in ('order_date', 'delivery_date'):
+    for k in ('order_date', 'delivery_date', 'warranty_date', 'expiry_date'):
         if k in data:
             setattr(p, k, _parse_csv_date(data[k]))
     if 'production_date' in data:
         p.production_date = _parse_csv_date(data['production_date'])
+    if 'sap_line_item' in data:
+        p.sap_line_item = _parse_int(data['sap_line_item'])
     db.session.commit()
     return jsonify({'message': '更新成功', 'product': p.to_dict()})
 

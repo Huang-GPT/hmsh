@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS products (
     product_family VARCHAR(64) COMMENT '产品族',
     production_date DATE COMMENT '生产日期',
     sap_order_no VARCHAR(32) COMMENT 'SAP销售订单号',
-    sap_line_item VARCHAR(16) COMMENT 'SAP行项目号',
+    sap_line_item INT COMMENT 'SAP行项目号',
     status ENUM('active','inactive') DEFAULT 'active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     -- 销售订单 17~19 CSV 导入字段
@@ -87,6 +87,8 @@ CREATE TABLE IF NOT EXISTS products (
     receiver_phone VARCHAR(32) COMMENT '联系电话',
     order_date DATETIME COMMENT '下单日期',
     delivery_date DATETIME COMMENT '交货日期',
+    warranty_date DATE COMMENT '保修日期',
+    expiry_date DATE COMMENT '截至日期',
     INDEX idx_serial_number (serial_number),
     INDEX idx_qr_code (qr_code),
     INDEX idx_sap_order (sap_order_no, sap_line_item),

@@ -54,6 +54,7 @@
               />
             </th>
             <th class="col-id">ID</th>
+            <th>行项目</th>
             <th>销售单号</th>
             <th>二维码</th>
             <th>客户名称</th>
@@ -65,16 +66,18 @@
             <th>下单日期</th>
             <th>交货日期</th>
             <th>生产日期</th>
+            <th>保修日期</th>
+            <th>截至日期</th>
             <th>状态</th>
             <th class="col-actions sticky-right">操作</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading && products.length === 0">
-            <td colspan="15" class="state-cell">加载中…</td>
+            <td colspan="18" class="state-cell">加载中…</td>
           </tr>
           <tr v-else-if="products.length === 0">
-            <td colspan="15" class="state-cell">
+            <td colspan="18" class="state-cell">
               <div class="empty-cell">
                 <div class="empty-icon">📦</div>
                 <div class="empty-text">暂无产品数据</div>
@@ -95,6 +98,7 @@
               />
             </td>
             <td class="col-id">#{{ p.id }}</td>
+            <td class="col-int">{{ p.sap_line_item ?? '—' }}</td>
             <td>{{ p.sales_no || '—' }}</td>
             <td class="col-qr"><code>{{ p.qr_code || '—' }}</code></td>
             <td>{{ p.customer_name || '—' }}</td>
@@ -106,6 +110,8 @@
             <td class="col-date">{{ formatDate(p.order_date) }}</td>
             <td class="col-date">{{ formatDate(p.delivery_date) }}</td>
             <td class="col-date">{{ formatDate(p.production_date) }}</td>
+            <td class="col-date">{{ formatDate(p.warranty_date) }}</td>
+            <td class="col-date">{{ formatDate(p.expiry_date) }}</td>
             <td>
               <van-tag :type="p.status === 'active' ? 'success' : 'danger'" size="mini">
                 {{ p.status === 'active' ? '有效' : '无效' }}
@@ -186,6 +192,22 @@
         <van-cell title="生产日期">
           <input type="date" v-model="form.production_date" class="date-input" placeholder="点击选择日期" />
         </van-cell>
+        <van-cell title="保修日期">
+          <input type="date" v-model="form.warranty_date" class="date-input" placeholder="点击选择日期" />
+        </van-cell>
+        <van-cell title="截至日期">
+          <input type="date" v-model="form.expiry_date" class="date-input" placeholder="点击选择日期" />
+        </van-cell>
+        <van-cell title="行项目">
+          <input
+            type="number"
+            v-model.number="form.sap_line_item"
+            class="date-input"
+            placeholder="整数，如 10"
+            min="0"
+            step="1"
+          />
+        </van-cell>
       </div>
     </van-dialog>
 
@@ -213,6 +235,9 @@
         <div class="preview-row"><span class="label">下单日期</span><span class="value">{{ formatDate(previewingProduct.order_date) }}</span></div>
         <div class="preview-row"><span class="label">交货日期</span><span class="value">{{ formatDate(previewingProduct.delivery_date) }}</span></div>
         <div class="preview-row"><span class="label">生产日期</span><span class="value">{{ formatDate(previewingProduct.production_date) }}</span></div>
+        <div class="preview-row"><span class="label">保修日期</span><span class="value">{{ formatDate(previewingProduct.warranty_date) }}</span></div>
+        <div class="preview-row"><span class="label">截至日期</span><span class="value">{{ formatDate(previewingProduct.expiry_date) }}</span></div>
+        <div class="preview-row"><span class="label">行项目</span><span class="value">{{ previewingProduct.sap_line_item ?? '—' }}</span></div>
         <div class="preview-row"><span class="label">状态</span><span class="value">
           <van-tag :type="previewingProduct.status === 'active' ? 'success' : 'danger'" size="mini">
             {{ previewingProduct.status === 'active' ? '有效' : '无效' }}
@@ -234,6 +259,8 @@ const emptyForm = () => ({
   product_no: '', product_name: '', shipping_address: '',
   qr_code: '', receiver: '', receiver_phone: '',
   order_date: '', delivery_date: '', production_date: '',
+  warranty_date: '', expiry_date: '',
+  sap_line_item: null,
 })
 
 export default {
@@ -377,9 +404,9 @@ export default {
         return
       }
       const headers = [
-        'ID', '销售单号', '二维码', '客户名称', '经销商', '经销商联系人',
+        'ID', '行项目', '销售单号', '二维码', '客户名称', '经销商', '经销商联系人',
         '经销商电话', '产品编号', '产品名称', '发货地址', '收货人', '收货电话',
-        '下单日期', '交货日期', '生产日期', '状态',
+        '下单日期', '交货日期', '生产日期', '保修日期', '截至日期', '状态',
       ]
       const escape = (v) => {
         if (v === null || v === undefined) return ''
@@ -388,12 +415,14 @@ export default {
         return s
       }
       const rows = this.products.map(p => [
-        p.id, p.sales_no, p.qr_code, p.customer_name, p.dealer_name,
+        p.id, p.sap_line_item, p.sales_no, p.qr_code, p.customer_name, p.dealer_name,
         p.dealer_contact, p.dealer_phone, p.product_no, p.product_name,
         p.shipping_address, p.receiver, p.receiver_phone,
         this.formatDate(p.order_date),
         this.formatDate(p.delivery_date),
         this.formatDate(p.production_date),
+        this.formatDate(p.warranty_date),
+        this.formatDate(p.expiry_date),
         p.status,
       ].map(escape).join(','))
       // 加 BOM 让 Excel 正确识别 UTF-8
@@ -432,6 +461,9 @@ export default {
         order_date: toFormDate(p.order_date),
         delivery_date: toFormDate(p.delivery_date),
         production_date: toFormDate(p.production_date),
+        warranty_date: toFormDate(p.warranty_date),
+        expiry_date: toFormDate(p.expiry_date),
+        sap_line_item: p.sap_line_item ?? null,
       }
       this.showCreate = true
     },
@@ -453,7 +485,12 @@ export default {
         const payload = {}
         for (const k in this.form) {
           const v = this.form[k]
-          payload[k] = (v && String(v).trim()) || null
+          // sap_line_item 是整数字段，原样传；其余空字符串当作 null
+          if (k === 'sap_line_item') {
+            payload[k] = (v === '' || v === null || v === undefined) ? null : Number(v)
+          } else {
+            payload[k] = (v && String(v).trim()) || null
+          }
         }
         if (isEdit) {
           await updateProduct(this.editingProduct.id, payload)
@@ -614,7 +651,7 @@ export default {
 }
 .product-table {
   width: 100%;
-  min-width: 1500px;
+  min-width: 1800px;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -663,6 +700,13 @@ export default {
   width: 60px;
   color: #9ca3af;
   font-family: monospace;
+}
+.col-int {
+  font-family: monospace;
+  font-weight: 600;
+  color: #1989fa;
+  text-align: right;
+  width: 80px;
 }
 .col-qr code {
   background: #f3f4f6;

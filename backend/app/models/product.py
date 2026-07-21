@@ -19,7 +19,7 @@ class Product(db.Model):
     product_family = db.Column(db.String(64), index=True)
     production_date = db.Column(db.Date)
     sap_order_no = db.Column(db.String(32))
-    sap_line_item = db.Column(db.String(16))
+    sap_line_item = db.Column(db.Integer, comment='SAP 行项目号')
     status = db.Column(db.Enum('active', 'inactive'), default='active')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -37,6 +37,8 @@ class Product(db.Model):
     receiver_phone = db.Column(db.String(32), comment='联系电话')
     order_date = db.Column(db.DateTime, comment='下单日期')
     delivery_date = db.Column(db.DateTime, comment='交货日期')
+    warranty_date = db.Column(db.Date, comment='保修日期')
+    expiry_date = db.Column(db.Date, comment='截至日期')
 
     def to_dict(self):
         return {
@@ -63,6 +65,8 @@ class Product(db.Model):
             'receiver_phone': self.receiver_phone,
             'order_date': self.order_date.isoformat() if self.order_date else None,
             'delivery_date': self.delivery_date.isoformat() if self.delivery_date else None,
+            'warranty_date': self.warranty_date.isoformat() if self.warranty_date else None,
+            'expiry_date': self.expiry_date.isoformat() if self.expiry_date else None,
         }
 
 
