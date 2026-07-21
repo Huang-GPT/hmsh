@@ -24,10 +24,12 @@
 
       <div class="toolbar-row toolbar-bottom">
         <van-button size="small" type="primary" icon="plus" @click="openCreate">新建产品</van-button>
+        <van-button size="small" plain icon="down" @click="downloadTemplate">下载模板</van-button>
         <van-button size="small" plain icon="description" @click="triggerImport">导入CSV</van-button>
-        <van-button size="small" plain icon="down" @click="exportCSV">导出CSV</van-button>
+        <van-button size="small" plain icon="up" @click="exportCSV">导出CSV</van-button>
         <van-button size="small" plain icon="replay" @click="loadProducts()">刷新</van-button>
         <input ref="fileInput" type="file" accept=".csv" style="display:none" @change="onImportFile" />
+        <a class="format-help" @click="showFormat = true">📋 导入格式说明</a>
       </div>
 
       <!-- 批量操作条 -->
@@ -54,8 +56,8 @@
               />
             </th>
             <th class="col-id">ID</th>
-            <th>行项目</th>
             <th>销售单号</th>
+            <th>行项目</th>
             <th>二维码</th>
             <th>客户名称</th>
             <th>经销商</th>
@@ -98,8 +100,8 @@
               />
             </td>
             <td class="col-id">#{{ p.id }}</td>
-            <td class="col-int">{{ p.sap_line_item !== undefined && p.sap_line_item !== null ? p.sap_line_item : '—' }}</td>
             <td>{{ p.sales_no || '—' }}</td>
+            <td class="col-int">{{ p.sap_line_item !== undefined && p.sap_line_item !== null ? p.sap_line_item : '—' }}</td>
             <td class="col-qr"><code>{{ p.qr_code || '—' }}</code></td>
             <td>{{ p.customer_name || '—' }}</td>
             <td>{{ p.dealer_name || '—' }}</td>
@@ -139,6 +141,49 @@
         <van-button size="mini" :disabled="page >= totalPages" @click="changePage(1)">下一页</van-button>
       </div>
     </div>
+
+    <!-- 导入格式说明弹窗 -->
+    <van-dialog
+      v-model="showFormat"
+      title="CSV 导入格式说明"
+      :show-confirm-button="false"
+      cancel-button-text="关闭"
+      close-on-click-overlay
+    >
+      <div class="format-guide">
+        <h4>📋 字段说明（必须 UTF-8 编码，逗号分隔）</h4>
+        <table class="format-table">
+          <thead>
+            <tr><th>列名</th><th>是否必填</th><th>格式 / 示例</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>qr_code</code></td><td class="req">必填</td><td>每个二维码唯一，如 <code>QR123456</code></td></tr>
+            <tr><td><code>sales_no</code></td><td></td><td>销售单号，如 <code>0050384274</code></td></tr>
+            <tr><td><code>sap_line_item</code></td><td></td><td>整数，如 <code>10</code></td></tr>
+            <tr><td><code>customer_name</code></td><td></td><td>客户公司名</td></tr>
+            <tr><td><code>dealer_name</code></td><td></td><td>经销商名称</td></tr>
+            <tr><td><code>dealer_contact</code></td><td></td><td>经销商联系人</td></tr>
+            <tr><td><code>dealer_phone</code></td><td></td><td>经销商电话</td></tr>
+            <tr><td><code>product_no</code></td><td></td><td>产品型号代码，如 <code>P001</code></td></tr>
+            <tr><td><code>product_name</code></td><td></td><td>产品名称</td></tr>
+            <tr><td><code>shipping_address</code></td><td></td><td>发货地址</td></tr>
+            <tr><td><code>receiver</code></td><td></td><td>收货人姓名</td></tr>
+            <tr><td><code>receiver_phone</code></td><td></td><td>收货人电话</td></tr>
+            <tr><td><code>order_date</code></td><td></td><td><code>2026-07-21</code> 或 <code>2026/7/21</code></td></tr>
+            <tr><td><code>delivery_date</code></td><td></td><td>同 order_date</td></tr>
+            <tr><td><code>production_date</code></td><td></td><td>同 order_date</td></tr>
+            <tr><td><code>warranty_date</code></td><td></td><td>保修日期，格式同上</td></tr>
+            <tr><td><code>expiry_date</code></td><td></td><td>截至日期，格式同上</td></tr>
+            <tr><td><code>status</code></td><td></td><td><code>active</code> 或 <code>inactive</code>，默认 active</td></tr>
+          </tbody>
+        </table>
+        <div class="format-tips">
+          <p>📌 <strong>建议先用"下载模板"拿到标准格式</strong>，再在模板上填写数据。</p>
+          <p>📌 重复的 <code>qr_code</code> 会被自动跳过（不报错）。</p>
+          <p>📌 单文件建议 ≤ 5000 行；超量请分批导入。</p>
+        </div>
+      </div>
+    </van-dialog>
 
     <!-- 导入结果弹窗 -->
     <van-dialog
@@ -285,6 +330,8 @@ export default {
 
       showImportResult: false,
       lastImport: { inserted: 0, skipped: [], errors: [], total: 0, filename: '' },
+
+      showFormat: false,
     }
   },
   computed: {
@@ -356,6 +403,57 @@ export default {
     setStatusFilter(v) {
       if (this.statusFilter === v) return
       this.statusFilter = v
+    },
+
+    downloadTemplate() {
+      // 列顺序与 _coerce_csv_row / admin_create_product 一致
+      const headers = [
+        'qr_code', 'sales_no', 'sap_line_item', 'customer_name', 'dealer_name',
+        'dealer_contact', 'dealer_phone', 'product_no', 'product_name',
+        'shipping_address', 'receiver', 'receiver_phone',
+        'order_date', 'delivery_date', 'production_date',
+        'warranty_date', 'expiry_date', 'status',
+      ]
+      const examples = [
+        [
+          'QR1001', 'SO202607001', 10, '示例客户公司', '示例经销商有限公司',
+          '张三', '13800138000', 'P-001', '示例产品-A',
+          '北京市朝阳区建国路 88 号', '李四', '13900139000',
+          '2026-07-21', '2026-07-25', '2026-07-15',
+          '2026-07-30', '2027-07-30', 'active',
+        ],
+        [
+          'QR1002', 'SO202607001', 20, '另一客户', '另一经销商',
+          '王五', '13800138001', 'P-002', '示例产品-B',
+          '上海市浦东新区世纪大道 100 号', '赵六', '13900139001',
+          '2026-07-22', '2026-07-26', '2026-07-16',
+          '2026-07-31', '2027-07-31', 'active',
+        ],
+        [
+          'QR1003', 'SO202607002', 10, '', '',
+          '', '', 'P-003', '仅二维码示例',
+          '', '', '',
+          '2026-07-23', '', '',
+          '', '', '',
+        ],
+      ]
+      const escape = (v) => {
+        if (v === null || v === undefined) return ''
+        const s = String(v)
+        if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+        return s
+      }
+      const rows = examples.map(row => row.map(escape).join(','))
+      // UTF-8 BOM 确保 Excel 打开不乱码
+      const csv = '\uFEFF' + [headers.join(','), ...rows].join('\r\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'products_template.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+      this.$toast.success('模板已下载')
     },
 
     isSelected(id) {
@@ -617,8 +715,72 @@ export default {
   background: #1989fa;
   color: white;
 }
+.format-help {
+  margin-left: auto;
+  font-size: 12px;
+  color: #1989fa;
+  cursor: pointer;
+  text-decoration: none;
+}
+.format-help:hover {
+  text-decoration: underline;
+}
 
-/* ===== Bulk action bar ===== */
+/* ===== Format guide dialog ===== */
+.format-guide {
+  padding: 12px 16px;
+  max-height: 60vh;
+  overflow-y: auto;
+  font-size: 13px;
+}
+.format-guide h4 {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  color: #1f2937;
+}
+.format-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+}
+.format-table th,
+.format-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #f0f0f0;
+  text-align: left;
+  font-size: 12px;
+  vertical-align: top;
+}
+.format-table th {
+  background: #fafbfc;
+  color: #374151;
+  font-weight: 600;
+}
+.format-table code {
+  background: #f3f4f6;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 11px;
+  color: #1989fa;
+}
+.format-table .req {
+  color: #ee0a24;
+  font-weight: 600;
+}
+.format-tips {
+  background: #f7f8fa;
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #4b5563;
+}
+.format-tips p {
+  margin: 4px 0;
+}
+.format-tips strong {
+  color: #1f2937;
+}
 .bulk-bar {
   margin-top: 10px;
   padding: 8px 14px;
