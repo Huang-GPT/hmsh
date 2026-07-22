@@ -5,6 +5,38 @@ const api = axios.create({
   timeout: 15000
 })
 
+const TOKEN_KEY = 'hongmen_terminal_token'
+const USER_KEY = 'hongmen_terminal_user'
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem(TOKEN_KEY)
+  if (token) {
+    config.headers = config.headers || {}
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+export function setTerminalAuth(token, user) {
+  if (token) localStorage.setItem(TOKEN_KEY, token)
+  else localStorage.removeItem(TOKEN_KEY)
+  if (user) localStorage.setItem(USER_KEY, JSON.stringify(user))
+  else localStorage.removeItem(USER_KEY)
+}
+
+export function getTerminalUser() {
+  const raw = localStorage.getItem(USER_KEY)
+  return raw ? safeParse(raw) : null
+}
+
+export function clearTerminalAuth() {
+  setTerminalAuth(null, null)
+}
+
+function safeParse(s) {
+  try { return JSON.parse(s) } catch { return null }
+}
+
 // 销售单 + 行项目号 绑定（产品库必须存在）
 export function bindBySapOrder(sapOrderNo, sapLineItem) {
   return api.post('/customer/products/scan-sap', {

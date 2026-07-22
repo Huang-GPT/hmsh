@@ -77,6 +77,40 @@ def customer_login():
     resp.headers['Authorization'] = f'Bearer {token}'
     return resp
 
+
+@bp.route('/auth/customer/login-by-phone', methods=['POST'])
+def customer_login_by_phone():
+    """终端手机页面：用手机号登录。自动绑定 User.phone 与现有 user_id 体系。
+       第一次登录若 phone 不存在则创建一条 customer 记录（role=customer, phone=X），
+       后续绑定通过 user_id 关联到该手机号 —— 同手机号登录即看到自己所有绑定。"""
+    from app.models.user import User
+    from app import db
+    data = request.get_json() or {}
+    phone = (data.get('phone') or '').strip()
+    if not phone:
+        return jsonify({'error': '请输入手机号'}), 400
+    if not phone.isdigit() or len(phone) < 7:
+        return jsonify({'error': '手机号格式不正确'}), 400
+
+    user = User.query.filter_by(phone=phone).first()
+    if not user:
+        # 自动创建 customer；openid 字段留空（无微信场景），用 phone 唯一标识
+        user = User(
+            phone=phone,
+            nickname=f'用户{phone[-4:]}',
+            role='customer',
+        )
+        db.session.add(user)
+        db.session.commit()
+    elif user.status == 'disabled':
+        return jsonify({'error': '账号已停用，请联系管理员'}), 403
+
+    token = generate_token(user)
+    resp = make_response(jsonify({'token': token, 'user': user.to_dict()}))
+    resp.set_cookie('access_token', token, httponly=True, samesite='Lax', max_age=7200)
+    resp.headers['Authorization'] = f'Bearer {token}'
+    return resp
+
 @bp.route('/auth/refresh', methods=['POST'])
 @login_required
 def refresh():
