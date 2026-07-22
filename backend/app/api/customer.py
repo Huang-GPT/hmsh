@@ -37,21 +37,24 @@ def my_products():
 @bp.route('/customer/products/bind', methods=['POST'])
 @login_required
 def bind_product():
-    data = request.get_json()
-    serial = data.get('serial_number')
+    """终端用户绑定产品。必须先在产品库存在。
+       后端不再自动创建 Product —— 防止终端绕过产品库直接"造"产品。"""
+    data = request.get_json() or {}
+    serial = (data.get('serial_number') or '').strip()
     method = data.get('bind_method', 'manual')
     if not serial:
-        return jsonify({'error': '请输入序列号'}), 400
+        return jsonify({'error': '请输入产品序列号'}), 400
 
     product = Product.query.filter_by(serial_number=serial).first()
     if not product:
-        product = Product(serial_number=serial, model=data.get('model', '未知'), product_family=data.get('product_family'))
-        db.session.add(product)
-        db.session.commit()
+        return jsonify({
+            'error': '产品库中未找到该序列号',
+            'detail': f'serial_number={serial} 不存在，请联系客服补录后再绑定'
+        }), 404
 
     existing = UserProduct.query.filter_by(user_id=g.current_user_id, product_id=product.id).first()
     if existing:
-        return jsonify({'error': '该产品已绑定'}), 400
+        return jsonify({'error': '该产品已绑定', 'bound_at': existing.bind_time.isoformat() if existing.bind_time else None}), 400
 
     up = UserProduct(user_id=g.current_user_id, product_id=product.id, bind_method=method)
     db.session.add(up)
