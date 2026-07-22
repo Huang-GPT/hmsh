@@ -5,6 +5,25 @@ const api = axios.create({
   timeout: 15000
 })
 
+// 拦截器：自动带 Bearer token
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('hongmen_token')
+  if (token) {
+    config.headers = config.headers || {}
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+export function setToken(token) {
+  if (token) localStorage.setItem('hongmen_token', token)
+  else localStorage.removeItem('hongmen_token')
+}
+
+export function getToken() {
+  return localStorage.getItem('hongmen_token')
+}
+
 // 销售单 + 行项目号 绑定（产品库必须存在）
 export function bindBySapOrder(sapOrderNo, sapLineItem) {
   return api.post('/customer/products/scan-sap', {
