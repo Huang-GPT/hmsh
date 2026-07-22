@@ -224,7 +224,6 @@ export default {
       this.sapLineItem = ''
       this.$toast.success('已退出登录')
     },
-  methods: {
     bindMethodLabel(m) {
       return { qrcode_sap: '扫码绑定', qrcode_product: '序列号绑定', manual: '手动绑定' }[m] || m
     },
