@@ -535,8 +535,11 @@ def _coerce_csv_row(row):
                 return s(v)
         return None
 
+    sales_no_val = pick('销售单号', 'sales_no')
     return {
-        'sales_no':         pick('销售单号', 'sales_no'),
+        'sales_no':         sales_no_val,
+        # 销售单号同时写到 sap_order_no，兼容历史绑定端点查询
+        'sap_order_no':     sales_no_val,
         'sap_line_item':    _parse_int(pick('行项目', 'sap_line_item')),
         'customer_name':    pick('客户名称', 'customer_name'),
         'dealer_name':      pick('经销商名称', 'dealer_name'),
@@ -611,6 +614,8 @@ def admin_create_product():
 
         p = Product(
             sales_no=data.get('sales_no'),
+            # 销售单号同时填到 sap_order_no（兼容历史绑定端点查询）
+            sap_order_no=data.get('sap_order_no') or data.get('sales_no'),
             customer_name=data.get('customer_name'),
             dealer_name=data.get('dealer_name'),
             dealer_contact=data.get('dealer_contact'),
@@ -671,7 +676,11 @@ def admin_update_product(product_id):
     ]
     for k in updatable:
         if k in data:
-            setattr(p, k, data[k] or None)
+            v = data[k] or None
+            setattr(p, k, v)
+            # 编辑时改 sales_no 同步到 sap_order_no（绑定查询需要）
+            if k == 'sales_no' and v:
+                p.sap_order_no = v
     for k in ('order_date', 'delivery_date', 'activation_date', 'expiry_date'):
         if k in data:
             setattr(p, k, _parse_csv_date(data[k]))

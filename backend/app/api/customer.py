@@ -74,15 +74,32 @@ def unbind_product(product_id):
 @bp.route('/customer/products/scan-sap', methods=['POST'])
 @login_required
 def bind_by_sap():
-    data = request.get_json()
-    sap_order_no = data.get('sap_order_no')
+    """扫码 / 手动输入销售单 + 行项目号 绑定。
+       兼容 sap_order_no 与 sales_no 两个字段（CSV 导入只填了 sales_no）"""
+    data = request.get_json() or {}
+    order_no = (data.get('sap_order_no') or '').strip()
     sap_line_item = data.get('sap_line_item')
-    if not sap_order_no or not sap_line_item:
+    if not order_no or sap_line_item in (None, ''):
         return jsonify({'error': '缺少参数'}), 400
 
-    product = Product.query.filter_by(sap_order_no=sap_order_no, sap_line_item=sap_line_item).first()
+    try:
+        line_item_int = int(str(sap_line_item).strip())
+    except (ValueError, TypeError):
+        return jsonify({'error': '行项目号必须是整数'}), 400
+
+    from sqlalchemy import or_
+    product = Product.query.filter(
+        or_(
+            Product.sap_order_no == order_no,
+            Product.sales_no == order_no,
+        ),
+        Product.sap_line_item == line_item_int,
+    ).first()
     if not product:
-        return jsonify({'error': '未找到对应产品'}), 404
+        return jsonify({
+            'error': '产品库中未找到该销售单+行项目号',
+            'detail': f'订单 {order_no} 行项目 {line_item_int} 不存在，请先在管理后台录入',
+        }), 404
 
     existing = UserProduct.query.filter_by(user_id=g.current_user_id, product_id=product.id).first()
     if existing:
