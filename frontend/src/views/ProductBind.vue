@@ -2,33 +2,6 @@
   <div class="product-bind">
     <van-nav-bar title="产品绑定" left-arrow @click-left="$router.back()" fixed :border="false" />
 
-    <!-- 未登录时显示登录表单 -->
-    <div v-if="!token" class="login-gate">
-      <div class="login-card">
-        <div class="login-title">终端客户登录</div>
-        <div class="login-sub">请输入管理员为您开通的手机号</div>
-        <van-cell-group inset>
-          <van-field
-            v-model="phone"
-            type="tel"
-            label="手机号"
-            placeholder="11 位手机号"
-            maxlength="11"
-            clearable
-            :disabled="loggingIn"
-          />
-        </van-cell-group>
-        <div class="submit-row">
-          <van-button
-            round block type="info" :loading="loggingIn" :disabled="!canLogin"
-            @click="onLogin"
-          >登录</van-button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 已登录显示绑定主界面 -->
-    <template v-else>
     <!-- 顶部 banner -->
     <div class="bind-banner">
       <div class="bind-banner-title">扫描产品二维码</div>
@@ -139,23 +112,17 @@
     </div>
 
     <div style="height: 60px;"></div>
-    </template>
   </div>
 </template>
 
 <script>
-import axios from 'axios'
-import { bindBySapOrder, bindBySerialNumber, getUserProducts, unbindProduct, setToken, getToken } from '@/api/products'
+import { bindBySapOrder, bindBySerialNumber, getUserProducts, unbindProduct } from '@/api/products'
 import { scanQRCode } from '@/utils/wechat'
 
 export default {
   name: 'ProductBind',
   data() {
     return {
-      token: getToken() || '',
-      phone: '',
-      loggingIn: false,
-
       sapOrderNo: '',
       sapLineItem: '',
       submitting: false,
@@ -166,43 +133,14 @@ export default {
     }
   },
   computed: {
-    canLogin() {
-      return /^\d{11}$/.test(this.phone.trim()) && !this.loggingIn
-    },
     canSubmit() {
       return this.sapOrderNo.trim() && this.sapLineItem !== '' && this.sapLineItem !== null && !this.submitting
     },
   },
   created() {
-    if (this.token) {
-      this.loadBoundProducts()
-    } else {
-      this.loading = false
-    }
+    this.loadBoundProducts()
   },
   methods: {
-    async onLogin() {
-      if (!this.canLogin) return
-      this.loggingIn = true
-      try {
-        const res = await axios.post('/api/auth/customer/quick-login', { phone: this.phone.trim() })
-        const token = res.data && res.data.token
-        if (!token) {
-          this.$toast('登录失败：服务端未返回 token')
-          return
-        }
-        setToken(token)
-        this.token = token
-        this.$toast.success('登录成功')
-        await this.loadBoundProducts()
-      } catch (e) {
-        const data = e && e.response && e.response.data
-        const err = (data && data.error) || e.message || '登录失败'
-        this.$toast(err)
-      } finally {
-        this.loggingIn = false
-      }
-    },
   methods: {
     bindMethodLabel(m) {
       return { qrcode_sap: '扫码绑定', qrcode_product: '序列号绑定', manual: '手动绑定' }[m] || m
@@ -306,28 +244,6 @@ export default {
   background: #f5f6f8;
   padding-top: 46px;
   padding-bottom: 20px;
-}
-.login-gate {
-  padding: 32px 16px;
-}
-.login-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 24px 20px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-}
-.login-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1f2937;
-  text-align: center;
-  margin-bottom: 4px;
-}
-.login-sub {
-  font-size: 13px;
-  color: #6b7280;
-  text-align: center;
-  margin-bottom: 20px;
 }
 .bind-banner {
   background: linear-gradient(135deg, #4a90e2, #1989fa);

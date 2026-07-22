@@ -77,36 +77,6 @@ def customer_login():
     resp.headers['Authorization'] = f'Bearer {token}'
     return resp
 
-
-@bp.route('/auth/customer/quick-login', methods=['POST'])
-def customer_quick_login():
-    """终端手机页面快速登录：手机号 + 已有 customer 账号。
-       不自动注册账号 —— 防止任意手机号都被创建成 customer，
-       终端用户必须先由 admin 在后台用手机号开通。"""
-    from app.models.user import User
-    from app import db
-    data = request.get_json() or {}
-    phone = (data.get('phone') or '').strip()
-    if not phone:
-        return jsonify({'error': '请输入手机号'}), 400
-    if not phone.isdigit() or len(phone) < 7:
-        return jsonify({'error': '手机号格式不正确'}), 400
-
-    user = User.query.filter_by(phone=phone, role='customer').first()
-    if not user:
-        return jsonify({
-            'error': '该手机号未开通客户账号',
-            'detail': '请联系管理员在后台用户管理中添加您的手机号',
-        }), 404
-    if user.status != 'active':
-        return jsonify({'error': '账号已停用，请联系管理员'}), 403
-
-    token = generate_token(user)
-    resp = make_response(jsonify({'token': token, 'user': user.to_dict()}))
-    resp.set_cookie('access_token', token, httponly=True, samesite='Lax', max_age=7200)
-    resp.headers['Authorization'] = f'Bearer {token}'
-    return resp
-
 @bp.route('/auth/refresh', methods=['POST'])
 @login_required
 def refresh():
