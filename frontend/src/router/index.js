@@ -6,6 +6,7 @@ import ProductRepair from '@/views/ProductRepair.vue'
 import ProgressQuery from '@/views/ProgressQuery.vue'
 import CommonFaults from '@/views/CommonFaults.vue'
 import Home from '@/views/Home.vue'
+import TerminalLogin from '@/views/Login.vue'
 import AdminLayout from '@/views/admin/AdminLayout.vue'
 import AdminLogin from '@/views/admin/AdminLogin.vue'
 import AdminDashboard from '@/views/admin/AdminDashboard.vue'
@@ -26,6 +27,11 @@ const routes = [
     path: '/user',
     name: 'UserCenter',
     component: Home
+  },
+  {
+    path: '/login',
+    name: 'TerminalLogin',
+    component: TerminalLogin
   },
   {
     path: '/product/bind',
@@ -70,6 +76,16 @@ const router = new VueRouter({
   mode: 'history',
   base: process.env.BASE_URL,
   routes
+})
+
+// 路由守卫：终端绑定/报修页面必须先登录
+router.beforeEach((to, from, next) => {
+  const tokenKey = 'hongmen_terminal_token'
+  const needAuth = to.path === '/product/bind' || to.path === '/product/repair'
+  if (needAuth && !localStorage.getItem(tokenKey)) {
+    return next({ path: '/login', query: { redirect: to.fullPath } })
+  }
+  next()
 })
 
 export default router
