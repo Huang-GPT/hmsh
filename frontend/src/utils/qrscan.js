@@ -11,7 +11,6 @@
  * 不需要 getUserMedia，BarcodeDetector 优先级最高无依赖。
  */
 
-import jsQR from 'jsqr'
 import { BrowserMultiFormatReader } from '@zxing/browser'
 
 // 单例 reader（内部状态机，重复 decode 影响性能）
@@ -127,17 +126,6 @@ async function tryZxing(bitmap) {
   return null
 }
 
-function tryJsQR(canvas) {
-  if (!canvas || canvas.width < 20 || canvas.height < 20) return null
-  try {
-    const ctx = canvas.getContext('2d')
-    const data = ctx.getImageData(0, 0, canvas.width, canvas.height)
-    const code = jsQR(data.data, canvas.width, canvas.height)
-    if (code && code.data) return code.data
-  } catch (e) { /* ignore */ }
-  return null
-}
-
 async function decodeFromImage(img) {
   const tried = []
   // ========== 路径 1：ZXing（工业级，最先试） ==========
@@ -160,7 +148,7 @@ async function decodeFromImage(img) {
     }
   } catch (e) { /* continue */ }
 
-  // ========== 路径 2：BarcodeDetector ==========
+  // ========== 路径 2：BarcodeDetector 原生 ==========
   try {
     const canvas = imageToCanvas(img, 1600)
     let r = await tryBarcodeDetector(canvas)
@@ -171,21 +159,6 @@ async function decodeFromImage(img) {
       r = await tryBarcodeDetector(rotated)
       if (r) return r
       tried.push(`barcode-r${a}`)
-    }
-  } catch (e) { /* continue */ }
-
-  // ========== 路径 3：jsQR 兜底 ==========
-  try {
-    const canvas = imageToCanvas(img, 1600)
-    grayscale(canvas)
-    let r = tryJsQR(canvas)
-    if (r) return r
-    tried.push('jsqr-gray')
-    for (const a of [90, 180, 270]) {
-      const rotated = rotate(canvas, a)
-      r = tryJsQR(rotated)
-      if (r) return r
-      tried.push(`jsqr-r${a}`)
     }
   } catch (e) { /* continue */ }
 
