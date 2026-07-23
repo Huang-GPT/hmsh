@@ -24,7 +24,8 @@
       >立即扫码</van-button>
       <div class="scan-hint">
         📷 手机端直接拉起相机 / 电脑端选择二维码图片<br/>
-        <span style="color:#fff;opacity:0.85">识别出二维码后会自动填入下方"二维码绑定"输入框</span>
+        <span style="color:#fff;opacity:0.85">识别出二维码后会自动填入下方"二维码绑定"输入框</span><br/>
+        <span style="color:#ffd591;opacity:0.95">识别失败时，可直接在下方输入框手输二维码内容</span>
       </div>
     </div>
 
@@ -221,7 +222,12 @@ export default {
         // 用户取消（'已取消扫码'）不报错，静默处理
         const msg = e && e.message || '扫码失败'
         if (/取消/.test(msg)) return
-        this.$toast(msg)
+        // 解码失败 → 弹一个带"知道了"按钮的确认框，引导用户手动输入
+        await this.$dialog.alert({
+          title: '未识别到二维码',
+          message: msg + '\n\n请在下方"直接输入二维码内容"框中手动输入后绑定。',
+          confirmButtonText: '知道了',
+        }).catch(() => {})
       } finally {
         this.scanning = false
       }

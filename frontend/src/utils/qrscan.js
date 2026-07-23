@@ -22,33 +22,49 @@ async function loadImage(url) {
   })
 }
 
+// 把任意大图压到最大边长 1200px，白底填充，输出 imageData
+// 解决了"手机照片 4000x3000 太大 jsQR 处理失败"和"照片边缘杂色 decoder 假设白底"两个常见问题
+function preprocessToImageData(img) {
+  const w = img.naturalWidth || img.width
+  const h = img.naturalHeight || img.height
+  if (!w || !h) throw new Error('图片尺寸为 0')
+
+  const MAX = 1200
+  const scale = Math.min(1, MAX / Math.max(w, h))
+  const tw = Math.max(1, Math.round(w * scale))
+  const th = Math.max(1, Math.round(h * scale))
+
+  const canvas = document.createElement('canvas')
+  canvas.width = tw
+  canvas.height = th
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, tw, th)
+  ctx.drawImage(img, 0, 0, tw, th)
+  return { ctx, tw, th, data: ctx.getImageData(0, 0, tw, th) }
+}
+
 async function decodeFromImage(img) {
-  // 路径 1：原生 BarcodeDetector（Chrome/Edge 83+, Safari 17+）
+  // 路径 1：BarcodeDetector + 已经预处理过的 canvas（部分浏览器对 canvas 比 image 更稳）
   if (typeof BarcodeDetector !== 'undefined') {
+    const { ctx, tw, th } = preprocessToImageData(img)
     try {
       const detector = new BarcodeDetector({ formats: ['qr_code'] })
-      const results = await detector.detect(img)
+      const results = await detector.detect(ctx.canvas)
       if (results && results.length > 0 && results[0].rawValue) {
         return results[0].rawValue
       }
     } catch (e) {
-      // BarcodeDetector 失败 → jsQR 接管
+      // 继续 jsQR
     }
   }
 
-  // 路径 2：jsQR 兜底（Firefox、微信内嵌浏览器、桌面 Chrome 老版本等）
-  const w = img.naturalWidth || img.width
-  const h = img.naturalHeight || img.height
-  if (!w || !h) throw new Error('图片尺寸为 0，无法识别')
-  const canvas = document.createElement('canvas')
-  canvas.width = w
-  canvas.height = h
-  const ctx = canvas.getContext('2d')
-  ctx.drawImage(img, 0, 0, w, h)
-  const data = ctx.getImageData(0, 0, w, h)
-  const code = jsQR(data.data, w, h, { inversionAttempts: 'dontInvert' })
+  // 路径 2：jsQR 兜底，喂预处理过的 imageData
+  const { data, tw, th } = preprocessToImageData(img)
+  const code = jsQR(data.data, tw, th)
   if (code && code.data) return code.data
-  throw new Error('未识别到二维码，请确保图片清晰、对准取景框')
+
+  throw new Error('未能从图片中识别到二维码，请拍照时让二维码占画面 1/3 以上、对准取景框、光线充足；或直接在下方手动输入二维码内容')
 }
 
 /**
