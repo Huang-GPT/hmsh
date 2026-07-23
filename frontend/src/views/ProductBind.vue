@@ -61,14 +61,17 @@
       </div>
     </div>
 
-    <!-- 手动输入二维码绑定 -->
-    <div class="manual-section">
-      <div class="divider"><span>或直接输入二维码内容</span></div>
+    <!-- 手动输入二维码绑定（推荐路径） -->
+    <div class="manual-section manual-qr-primary">
+      <div class="divider"><span>📝 推荐：直接输入二维码</span></div>
+      <div class="qr-helper-text">
+        手机端扫码若识别失败，可直接抄写或粘贴二维码上的字符串到下方输入框。
+      </div>
       <van-cell-group inset>
         <van-field
           v-model="qrCode"
-          label="二维码"
-          placeholder="如 QR1001"
+          label="二维码内容"
+          placeholder="抄写或粘贴二维码字符串"
           clearable
           :disabled="submitting"
         />
@@ -371,6 +374,24 @@ export default {
 }
 .submit-row {
   padding: 12px 16px 0;
+}
+.manual-qr-primary {
+  background: #fffbe8;
+  border: 1px solid #ffe58f;
+  border-radius: 10px;
+  margin: 12px 16px;
+  padding-bottom: 8px;
+}
+.manual-qr-primary .divider span {
+  background: #fffbe8;
+  color: #d48806;
+  font-weight: 600;
+}
+.qr-helper-text {
+  font-size: 12px;
+  color: #8c6d3f;
+  padding: 0 16px 8px;
+  line-height: 1.5;
 }
 .bound-section {
   margin: 16px 0;
