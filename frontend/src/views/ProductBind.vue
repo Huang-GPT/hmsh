@@ -97,6 +97,7 @@
                     行项目：{{ p.sap_line_item }}
                   </div>
                   <div v-if="p.qr_code">二维码：{{ p.qr_code }}</div>
+                  <div v-if="p.production_date">生产日期：{{ formatDate(p.production_date) }}</div>
                 </div>
               </template>
             </van-cell>
