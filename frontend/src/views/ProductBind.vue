@@ -22,6 +22,10 @@
         :loading="scanning"
         @click="onScan"
       >立即扫码</van-button>
+      <div class="scan-hint">
+        📷 手机端直接拉起相机 / 电脑端选择二维码图片<br/>
+        <span style="color:#fff;opacity:0.85">识别出二维码后会自动填入下方"二维码绑定"输入框</span>
+      </div>
     </div>
 
     <!-- 手动输入区（销售单 + 行项目号） -->
@@ -53,6 +57,30 @@
           :disabled="!canSubmit"
           @click="onManualBind"
         >绑定</van-button>
+      </div>
+    </div>
+
+    <!-- 手动输入二维码绑定 -->
+    <div class="manual-section">
+      <div class="divider"><span>或直接输入二维码内容</span></div>
+      <van-cell-group inset>
+        <van-field
+          v-model="qrCode"
+          label="二维码"
+          placeholder="如 QR1001"
+          clearable
+          :disabled="submitting"
+        />
+      </van-cell-group>
+      <div class="submit-row">
+        <van-button
+          round
+          block
+          type="primary"
+          :loading="submitting"
+          :disabled="!canSubmitQr"
+          @click="onQrBind"
+        >绑定二维码</van-button>
       </div>
     </div>
 
@@ -123,8 +151,8 @@
 </template>
 
 <script>
-import { bindBySapOrder, bindBySerialNumber, getUserProducts, unbindProduct, getTerminalUser, clearTerminalAuth } from '@/api/products'
-import { scanQRCode } from '@/utils/wechat'
+import { bindBySapOrder, bindBySerialNumber, bindByQrCode, getUserProducts, unbindProduct, getTerminalUser, clearTerminalAuth } from '@/api/products'
+import { scanQRWithBrowser } from '@/utils/qrscan'
 
 export default {
   name: 'ProductBind',
@@ -132,6 +160,7 @@ export default {
     return {
       sapOrderNo: '',
       sapLineItem: '',
+      qrCode: '',
       submitting: false,
       scanning: false,
       loading: true,
@@ -142,6 +171,9 @@ export default {
   computed: {
     canSubmit() {
       return this.sapOrderNo.trim() && this.sapLineItem !== '' && this.sapLineItem !== null && !this.submitting
+    },
+    canSubmitQr() {
+      return this.qrCode.trim() && !this.submitting
     },
     loggedInUser() {
       return getTerminalUser()
@@ -164,29 +196,32 @@ export default {
       return String(d).substring(0, 10)
     },
     async onScan() {
+      // 任意浏览器通用：调相机（移动） / 选图（桌面），识别后自动填入 qrCode 输入框
       this.scanning = true
       try {
-        const result = await scanQRCode()
-        // QR 格式约定：SAP订单号|行项目号，如 "SO202607001|10"
-        const text = String(result || '').trim()
-        if (!text) {
-          this.$toast('扫码结果为空')
+        const text = await scanQRWithBrowser()
+        const value = String(text || '').trim()
+        if (!value) {
+          this.$toast('二维码内容为空')
           return
         }
-        const [orderNo, lineItem] = text.split('|').map(s => s && s.trim())
+        // 兼容 pip-separated 格式：sapOrderNo|sapLineItem
+        const [orderNo, lineItem] = value.split('|').map(s => s && s.trim())
         if (orderNo && lineItem) {
+          // SAP 复合码 → 走销售单 + 行项目绑定
           this.sapOrderNo = orderNo
           this.sapLineItem = lineItem
-          await this.doBind(() => bindBySapOrder(orderNo, lineItem), '扫码')
-        } else if (orderNo) {
-          // 兼容：二维码内容直接就是序列号
-          await this.doBind(() => bindBySerialNumber(orderNo), '扫码')
-        } else {
-          this.$toast('无法识别的二维码内容')
+          this.$toast.success(`已识别：${orderNo} / 行项目 ${lineItem}`)
+        } else if (value) {
+          // 单值二维码 → 自动填入二维码绑定输入框，等用户点绑定按钮
+          this.qrCode = value
+          this.$toast.success(`已识别二维码：${value}`)
         }
       } catch (e) {
-        const data = e && e.response && e.response.data
-        this.$toast((data && data.error) || e.message || '扫码失败')
+        // 用户取消（'已取消扫码'）不报错，静默处理
+        const msg = e && e.message || '扫码失败'
+        if (/取消/.test(msg)) return
+        this.$toast(msg)
       } finally {
         this.scanning = false
       }
@@ -194,6 +229,12 @@ export default {
     async onManualBind() {
       if (!this.canSubmit) return
       await this.doBind(() => bindBySapOrder(this.sapOrderNo.trim(), Number(this.sapLineItem)), '手动输入')
+    },
+    async onQrBind() {
+      if (!this.canSubmitQr) return
+      const qr = this.qrCode.trim()
+      await this.doBind(() => bindByQrCode(qr), '二维码')
+      this.qrCode = ''
     },
     async doBind(apiCall, source) {
       this.submitting = true
@@ -264,6 +305,16 @@ export default {
   color: #1989fa;
   cursor: pointer;
   padding: 0 8px;
+}
+.scan-hint {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  font-size: 12px;
+  color: #fff;
+  text-align: center;
+  line-height: 1.6;
 }
 .bind-banner {
   background: linear-gradient(135deg, #4a90e2, #1989fa);
