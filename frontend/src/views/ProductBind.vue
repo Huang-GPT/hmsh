@@ -170,6 +170,7 @@ export default {
       loading: true,
       refreshing: false,
       boundProducts: [],
+      loggedInUser: null,
     }
   },
   computed: {
@@ -179,16 +180,17 @@ export default {
     canSubmitQr() {
       return this.qrCode.trim() && !this.submitting
     },
-    loggedInUser() {
-      return getTerminalUser()
-    },
   },
   created() {
+    // 直接读 localStorage 缓存用于渲染（瞬时可见，避免空白）
+    this.loggedInUser = getTerminalUser()
+    // 真实数据由后端接口返回；401 会被 axios 拦截器自动处理（清登录态 + 跳 /login）
     this.loadBoundProducts()
   },
   methods: {
     onLogout() {
       clearTerminalAuth()
+      this.loggedInUser = null
       this.$toast.success('已退出登录')
       this.$router.replace({ path: '/login' })
     },
@@ -300,6 +302,12 @@ export default {
         this.boundProducts = (res.data && res.data.products) || []
       } catch (e) {
         console.error('加载产品列表失败', e)
+        // 401 已由全局拦截器处理跳转；其他错误给个提示
+        const status = e && e.response && e.response.status
+        if (status && status !== 401) {
+          this.$toast && this.$toast('加载产品列表失败，请下拉刷新')
+        }
+        this.boundProducts = []
       } finally {
         this.loading = false
         this.refreshing = false

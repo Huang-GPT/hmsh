@@ -17,6 +17,27 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// 401 拦截：token 失效/过期 → 清掉本地登录态 + 跳登录页
+// 解决 "已登录但产品列表为空" 的卡死状态
+let _redirecting = false
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    const status = err && err.response && err.response.status
+    if (status === 401 && !_redirecting) {
+      _redirecting = true
+      setTerminalAuth(null, null)
+      // 避免在登录页本身触发
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        const redirect = encodeURIComponent(window.location.pathname + window.location.search)
+        window.location.replace('/login?redirect=' + redirect)
+      }
+      setTimeout(() => { _redirecting = false }, 1000)
+    }
+    return Promise.reject(err)
+  }
+)
+
 export function setTerminalAuth(token, user) {
   if (token) localStorage.setItem(TOKEN_KEY, token)
   else localStorage.removeItem(TOKEN_KEY)
