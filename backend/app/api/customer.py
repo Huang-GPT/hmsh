@@ -38,18 +38,24 @@ def my_products():
 @login_required
 def bind_product():
     """终端用户绑定产品。必须先在产品库存在。
-       后端不再自动创建 Product —— 防止终端绕过产品库直接"造"产品。"""
+       后端不再自动创建 Product —— 防止终端绕过产品库直接"造"产品。
+       支持两种输入：serial_number 或 qr_code，任意一种命中即可。"""
     data = request.get_json() or {}
     serial = (data.get('serial_number') or '').strip()
-    method = data.get('bind_method', 'manual')
-    if not serial:
-        return jsonify({'error': '请输入产品序列号'}), 400
+    qr = (data.get('qr_code') or '').strip()
+    method = data.get('bind_method', 'qrcode_product')
+    if not serial and not qr:
+        return jsonify({'error': '请输入产品序列号或二维码'}), 400
 
-    product = Product.query.filter_by(serial_number=serial).first()
+    product = None
+    if serial:
+        product = Product.query.filter_by(serial_number=serial).first()
+    if not product and qr:
+        product = Product.query.filter_by(qr_code=qr).first()
     if not product:
         return jsonify({
-            'error': '产品库中未找到该序列号',
-            'detail': f'serial_number={serial} 不存在，请联系客服补录后再绑定'
+            'error': '产品库中未找到该序列号或二维码',
+            'detail': '请在管理后台录入后再绑定，或联系客服',
         }), 404
 
     existing = UserProduct.query.filter_by(user_id=g.current_user_id, product_id=product.id).first()

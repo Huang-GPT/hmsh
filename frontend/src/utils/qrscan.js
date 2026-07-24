@@ -1,24 +1,16 @@
-/**
- * 工业级 QR 解码链路：
- *   1) @zxing/browser (Google ZXing 移植) —— 对相机照片最强，支持透视/光照/低对比
- *   2) BarcodeDetector (Chrome/Edge 原生) —— 快但对模糊照片差一点
- *   3) jsQR + 灰度 + 旋转 0/90/180/270 —— 最后的兜底
- *
- * 输入：HTMLImageElement 或 ImageBitmap
- * 输出：Promise<string> 解码结果，或 reject with 中文错误
- *
- * 任意浏览器（只要支持 <input type=file>），不需要 HTTPS，
- * 不需要 getUserMedia，BarcodeDetector 优先级最高无依赖。
- */
-
 import { BrowserMultiFormatReader } from '@zxing/browser'
 
-// 单例 reader（内部状态机，重复 decode 影响性能）
+import BarcodeFormat from '@zxing/library/esm/core/BarcodeFormat'
+import DecodeHintType from '@zxing/library/esm/core/DecodeHintType'
+
 let _zxingReader = null
 function getZxing() {
   if (!_zxingReader) {
     try {
-      _zxingReader = new BrowserMultiFormatReader()
+      const hints = new Map()
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE])
+      hints.set(DecodeHintType.TRY_HARDER, true)
+      _zxingReader = new BrowserMultiFormatReader(hints, 100)
     } catch (e) {
       _zxingReader = null
     }
@@ -35,16 +27,23 @@ async function loadImage(url) {
   })
 }
 
-// 把图片画到白底 canvas，转成 imageData
-function imageToCanvas(img, maxSide = 1600) {
+function imageToCanvas(img, maxSide) {
   const w = img.naturalWidth || img.width
   const h = img.naturalHeight || img.height
   if (!w || !h) throw new Error('图片尺寸为 0')
-
+  if (!maxSide) {
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, w, h)
+    ctx.drawImage(img, 0, 0, w, h)
+    return canvas
+  }
   const scale = Math.min(1, maxSide / Math.max(w, h))
   const tw = Math.max(1, Math.round(w * scale))
   const th = Math.max(1, Math.round(h * scale))
-
   const canvas = document.createElement('canvas')
   canvas.width = tw
   canvas.height = th
@@ -55,7 +54,15 @@ function imageToCanvas(img, maxSide = 1600) {
   return canvas
 }
 
-// 灰度化 + 大津阈值二值化（增强对比，黑暗环境救星）
+function cloneCanvas(canvas) {
+  const out = document.createElement('canvas')
+  out.width = canvas.width
+  out.height = canvas.height
+  const ctx = out.getContext('2d')
+  ctx.drawImage(canvas, 0, 0)
+  return out
+}
+
 function grayscale(canvas) {
   const ctx = canvas.getContext('2d')
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
@@ -68,7 +75,6 @@ function grayscale(canvas) {
   return canvas
 }
 
-// 旋转画布 0/90/180/270
 function rotate(canvas, angle) {
   if (angle === 0) return canvas
   const w = canvas.width
@@ -86,84 +92,86 @@ function rotate(canvas, angle) {
   return out
 }
 
-async function tryBarcodeDetector(bitmap) {
+async function tryBarcodeDetector(canvas) {
   if (typeof BarcodeDetector === 'undefined') return null
   try {
     const detector = new BarcodeDetector({ formats: ['qr_code'] })
-    const results = await detector.detect(bitmap)
+    const results = await detector.detect(canvas)
     if (results && results.length > 0 && results[0].rawValue) {
       return results[0].rawValue
     }
-  } catch (e) {
-    /* continue */
-  }
+  } catch (e) { /* continue */ }
   return null
 }
 
-async function tryZxing(bitmap) {
+async function tryZxing(canvas) {
   const reader = getZxing()
   if (!reader) return null
   try {
-    // ZXing-browser decodeFromImageElement 需要 img DOM element
-    if (bitmap instanceof HTMLImageElement) {
-      const result = await reader.decodeFromImageElement('qr-canvas-tmp-' + Date.now(), bitmap)
-      if (result && result.getText) return result.getText()
-    } else if (bitmap instanceof HTMLCanvasElement) {
-      const result = await reader.decodeFromCanvas(bitmap)
-      if (result && result.getText) return result.getText()
-    } else if (bitmap instanceof ImageBitmap) {
-      // ImageBitmap → to canvas → decode
-      const canvas = document.createElement('canvas')
-      canvas.width = bitmap.width
-      canvas.height = bitmap.height
-      canvas.getContext('2d').drawImage(bitmap, 0, 0)
-      const result = await reader.decodeFromCanvas(canvas)
-      if (result && result.getText) return result.getText()
-    }
-  } catch (e) {
-    /* no QR in image */
-  }
+    const result = await reader.decodeFromCanvas(canvas)
+    if (result && result.getText) return result.getText()
+  } catch (e) { /* no QR found */ }
   return null
 }
 
 async function decodeFromImage(img) {
   const tried = []
-  // ========== 路径 1：ZXing（工业级，最先试） ==========
-  try {
-    const canvas = imageToCanvas(img, 1600)
-    let r = await tryZxing(canvas)
-    if (r) return r
-    tried.push('zxing-canvas')
-    // ZXing 在黑白对比高的图上更好，做灰度再试
-    grayscale(canvas)
-    r = await tryZxing(canvas)
-    if (r) return r
-    tried.push('zxing-gray')
-    // 90° 旋转（手机竖拍可能转横识别更好）
-    for (const a of [90, 180, 270]) {
-      const rotated = rotate(canvas, a)
-      r = await tryZxing(rotated)
-      if (r) return r
-      tried.push(`zxing-r${a}`)
-    }
-  } catch (e) { /* continue */ }
 
-  // ========== 路径 2：BarcodeDetector 原生 ==========
-  try {
-    const canvas = imageToCanvas(img, 1600)
-    let r = await tryBarcodeDetector(canvas)
-    if (r) return r
-    tried.push('barcode-canvas')
-    for (const a of [90, 180, 270]) {
-      const rotated = rotate(canvas, a)
-      r = await tryBarcodeDetector(rotated)
-      if (r) return r
-      tried.push(`barcode-r${a}`)
+  // 有序尝试：最可能成功的在前，越往后越 aggressive
+  const plan = [
+    { scale: null, gray: false, angle: 0 },   // 原始分辨率彩图
+    { scale: 1600, gray: false, angle: 0 },   // 1600 彩图
+    { scale: 1200, gray: false, angle: 0 },   // 1200 彩图
+    { scale: 800, gray: false, angle: 0 },    // 800 彩图
+    { scale: 1600, gray: true, angle: 0 },    // 灰度
+    { scale: 1600, gray: true, angle: 90 },   // 灰度+竖拍旋转
+    { scale: 1600, gray: false, angle: 90 },  // 彩图+竖拍旋转
+    { scale: null, gray: false, angle: 90 },  // 原分辨率+旋转
+  ]
+
+  for (const p of plan) {
+    try {
+      let c = imageToCanvas(img, p.scale)
+      if (p.gray) grayscale(c)
+      if (p.angle !== 0) c = rotate(c, p.angle)
+      const z = await tryZxing(c)
+      if (z) return z
+      tried.push('zx-s' + (p.scale || 'f') + '-g' + (p.gray ? '1' : '0') + '-r' + p.angle)
+    } catch (e) { /* skip */ }
+  }
+
+  for (const p of plan) {
+    try {
+      let c = imageToCanvas(img, p.scale)
+      if (p.angle !== 0) c = rotate(c, p.angle)
+      const b = await tryBarcodeDetector(c)
+      if (b) return b
+      tried.push('bd-s' + (p.scale || 'f') + '-g0-r' + p.angle)
+    } catch (e) { /* skip */ }
+  }
+
+  // 最后兜底：灰度+全旋转，只在 1600 尺度
+  for (const gray of [false, true]) {
+    for (const angle of [180, 270]) {
+      try {
+        let c = imageToCanvas(img, 1600)
+        if (gray) grayscale(c)
+        const r = rotate(c, angle)
+        const z = await tryZxing(r)
+        if (z) return z
+        tried.push(`zx-s1600-g${gray ? '1' : '0'}-r${angle}`)
+        const b = await tryBarcodeDetector(r)
+        if (b) return b
+        tried.push(`bd-s1600-g${gray ? '1' : '0'}-r${angle}`)
+      } catch (e) { /* skip */ }
     }
-  } catch (e) { /* continue */ }
+  }
 
   console.warn('[qrscan] all attempts failed:', tried)
-  throw new Error('未能识别二维码，请拍照时让二维码占画面 1/3 以上、对准取景框、光线充足；或直接跳过扫码，在下方输入框手输二维码内容后点击"绑定二维码"')
+  throw new Error(
+    '未能识别到二维码。请确保二维码居中、光线充足、占画面 1/3 以上；' +
+    '或直接跳过扫码，在下方输入框手输二维码内容后点击"绑定二维码"。'
+  )
 }
 
 export function scanQRWithBrowser() {

@@ -53,6 +53,14 @@ export function bindBySerialNumber(serialNumber) {
   })
 }
 
+// 二维码 绑定（产品库必须存在）
+export function bindByQrCode(qrCode) {
+  return api.post('/customer/products/bind', {
+    qr_code: qrCode,
+    bind_method: 'qrcode_product',
+  })
+}
+
 export function getUserProducts() {
   return api.get('/customer/products')
 }
