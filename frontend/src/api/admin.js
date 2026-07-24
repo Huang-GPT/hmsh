@@ -91,12 +91,28 @@ export function importProducts(file, onProgress) {
   })
 }
 
+export function getAllFaultCategories(params) {
+  return api.get('/admin/fault-categories', { params })
+}
+
+export function createFaultCategory(data) {
+  return api.post('/admin/fault-categories', data)
+}
+
+export function updateFaultCategory(catId, data) {
+  return api.put(`/admin/fault-categories/${catId}`, data)
+}
+
+export function deleteFaultCategory(catId) {
+  return api.delete(`/admin/fault-categories/${catId}`)
+}
+
 export function getAllFaults(params) {
   return api.get('/admin/faults', { params })
 }
 
 export function createFault(data) {
-  return api.post('/faults', data)
+  return api.post('/admin/faults', data)
 }
 
 export function updateFault(faultId, data) {
@@ -112,5 +128,35 @@ export function getServiceStaff() {
 }
 
 export function getOrderDetail(orderId) {
-  return api.get(`/work-orders/${orderId}`)
+  return api.get(`/admin/orders/${orderId}`)
+}
+
+export function getServicePoints(params) {
+  return api.get('/admin/service-points', { params })
+}
+
+export function getEngineers(params) {
+  return api.get('/admin/engineers', { params })
+}
+
+export function acceptOrderApi(orderId, contactPhone) {
+  return api.post(`/admin/orders/${orderId}/accept`, { contact_phone: contactPhone || '' })
+}
+
+export function dispatchOrder(orderId, servicePointId, remark) {
+  return api.post(`/admin/orders/${orderId}/dispatch`, {
+    service_point_id: servicePointId,
+    remark: remark || '',
+  })
+}
+
+export function assignEngineer(orderId, engineerId, remark) {
+  return api.post(`/admin/orders/${orderId}/assign-engineer`, {
+    engineer_id: engineerId,
+    remark: remark || '',
+  })
+}
+
+export function confirmCompletedApi(orderId, remark) {
+  return api.post(`/admin/orders/${orderId}/confirm`, { remark: remark || '' })
 }
