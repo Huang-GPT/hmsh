@@ -156,7 +156,7 @@
 
 <script>
 import { bindBySapOrder, bindBySerialNumber, bindByQrCode, getUserProducts, unbindProduct, getTerminalUser, clearTerminalAuth } from '@/api/products'
-import { scanQRWithBrowser } from '@/utils/qrscan'
+import { scanQRWithBrowser, extractQrCode } from '@/utils/qrscan'
 
 export default {
   name: 'ProductBind',
@@ -204,23 +204,28 @@ export default {
       this.scanning = true
       try {
         const text = await scanQRWithBrowser()
-        const value = String(text || '').trim()
-        if (!value) {
+        const raw = String(text || '').trim()
+        if (!raw) {
           this.$toast('二维码内容为空')
           return
         }
         // 兼容 pip-separated 格式：sapOrderNo|sapLineItem
-        const [orderNo, lineItem] = value.split('|').map(s => s && s.trim())
+        const [orderNo, lineItem] = raw.split('|').map(s => s && s.trim())
         if (orderNo && lineItem) {
           // SAP 复合码 → 走销售单 + 行项目绑定
           this.sapOrderNo = orderNo
           this.sapLineItem = lineItem
           this.$toast.success(`已识别：${orderNo} / 行项目 ${lineItem}`)
-        } else if (value) {
-          // 单值二维码 → 自动填入二维码绑定输入框，等用户点绑定按钮
-          this.qrCode = value
-          this.$toast.success(`已识别二维码：${value}`)
+          return
         }
+        // 普通二维码：剥离 URL 前缀只保留 code=
+        const value = extractQrCode(raw)
+        if (!value) {
+          this.$toast('二维码内容无效')
+          return
+        }
+        this.qrCode = value
+        this.$toast.success(`已识别二维码：${value}`)
       } catch (e) {
         // 用户取消（'已取消扫码'）不报错，静默处理
         const msg = e && e.message || '扫码失败'
@@ -241,7 +246,13 @@ export default {
     },
     async onQrBind() {
       if (!this.canSubmitQr) return
-      const qr = this.qrCode.trim()
+      // 用户可能直接粘贴完整 URL：剥离前缀只保留 code=
+      const qr = extractQrCode(this.qrCode)
+      if (!qr) {
+        this.$toast('请输入有效的二维码内容')
+        return
+      }
+      this.qrCode = qr
       await this.doBind(() => bindByQrCode(qr), '二维码')
       this.qrCode = ''
     },

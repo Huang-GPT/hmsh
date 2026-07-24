@@ -211,3 +211,22 @@ export function scanQRWithBrowser() {
     try { input.click() } catch (e) { safeReject(e) }
   })
 }
+
+// 从扫码文本中提取纯二维码内容
+// 兼容：
+//   http://suyuan1.hongmen.com?code=4728458525491308  -> 4728458525491308
+//   https://suyuan1.hongmen.com/?code=4728458525491308 -> 4728458525491308
+//   suyuan1.hongmen.com?code=4728458525491308         -> 4728458525491308
+//   4728458525491308                                  -> 4728458525491308
+//   4728458525491308#xxx                              -> 4728458525491308
+export function extractQrCode(raw) {
+  if (!raw) return ''
+  let text = String(raw).trim()
+  if (!text) return ''
+  // 优先尝试 ?code= / &code=
+  const m = text.match(/[?&]code=([^&#\s]+)/)
+  if (m && m[1]) return m[1].trim()
+  // 兜底：去掉所有非数字字符
+  const digits = text.replace(/[^0-9]/g, '')
+  return digits
+}
