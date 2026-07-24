@@ -198,6 +198,23 @@ def pending_dispatch_orders():
     orders = query.order_by(WorkOrder.created_at.asc()).all()
     return jsonify({'orders': [o.to_dict() for o in orders]})
 
+@bp.route('/admin/orders/<int:order_id>/accept', methods=['POST'])
+@login_required
+@role_required('admin','dispatcher','operator')
+def accept_order(order_id):
+    """受理工单：pending_accept → pending_dispatch（转待派单）"""
+    order = WorkOrder.query.get_or_404(order_id)
+    if order.status != 'pending_accept':
+        return jsonify({'error': f'当前状态不能受理: {order.status}'}), 400
+    from app.models.work_order import OrderStatusLog
+    order.status = 'pending_dispatch'
+    log = OrderStatusLog(order_id=order.id, from_status='pending_accept', to_status='pending_dispatch',
+                         operator_id=g.current_user_id, operator_name=g.current_user_nickname, remark='受理工单')
+    db.session.add(log)
+    db.session.commit()
+    return jsonify({'message': '受理成功', 'order': order.to_dict()})
+
+
 @bp.route('/admin/orders/<int:order_id>/dispatch', methods=['POST'])
 @login_required
 @role_required('admin','dispatcher')
@@ -363,12 +380,50 @@ def complete_order(order_id):
     db.session.commit()
     return jsonify({'message': '已完成，等待客户确认', 'order': order.to_dict()})
 
+
+@bp.route('/admin/orders/<int:order_id>/confirm', methods=['POST'])
+@login_required
+@role_required('admin','dispatcher','operator')
+def admin_confirm_order(order_id):
+    """管理员代客确认：pending_confirm → completed"""
+    order = WorkOrder.query.get_or_404(order_id)
+    if order.status != 'pending_confirm':
+        return jsonify({'error': f'当前状态不能确认: {order.status}'}), 400
+    from app.models.work_order import OrderStatusLog
+    data = request.get_json() or {}
+    order.status = 'completed'
+    log = OrderStatusLog(order_id=order.id, from_status='pending_confirm', to_status='completed',
+                         operator_id=g.current_user_id, operator_name=g.current_user_nickname,
+                         remark=data.get('remark', '管理员代客确认'))
+    db.session.add(log)
+    db.session.commit()
+    return jsonify({'message': '已确认完成', 'order': order.to_dict()})
+
 # ========== 故障库管理 ==========
 @bp.route('/admin/fault-categories', methods=['GET'])
 @login_required
 def get_fault_categories():
-    cats = FaultCategory.query.filter_by(status='active').order_by(FaultCategory.sort_order).all()
-    return jsonify({'categories': [c.to_dict() for c in cats]})
+    """后台获取所有故障分类（含已停用），附 fault_count"""
+    keyword = request.args.get('keyword', '').strip()
+    q = FaultCategory.query
+    if keyword:
+        q = q.filter(FaultCategory.name.like(f'%{keyword}%'))
+    cats = q.order_by(FaultCategory.sort_order, FaultCategory.id).all()
+    # 一次聚合查询补全 fault_count
+    cat_ids = [c.id for c in cats]
+    count_map = {}
+    if cat_ids:
+        from sqlalchemy import func
+        rows = (db.session.query(CommonFault.category_id, func.count(CommonFault.id))
+                .filter(CommonFault.category_id.in_(cat_ids))
+                .group_by(CommonFault.category_id).all())
+        count_map = {cid: cnt for cid, cnt in rows}
+    items = []
+    for c in cats:
+        d = c.to_dict()
+        d['fault_count'] = int(count_map.get(c.id, 0))
+        items.append(d)
+    return jsonify({'categories': items})
 
 @bp.route('/admin/fault-categories', methods=['POST'])
 @login_required
@@ -471,22 +526,58 @@ def set_config(key):
 def get_all_orders():
     status = request.args.get('status')
     keyword = request.args.get('keyword')
+    page = max(1, request.args.get('page', default=1, type=int))
+    page_size = min(200, max(1, request.args.get('page_size', default=30, type=int)))
+
     query = WorkOrder.query
     if status:
-        query = query.filter_by(status=status)
+        # 支持逗号分隔多状态
+        statuses = [s.strip() for s in status.split(',') if s.strip()]
+        if len(statuses) == 1:
+            query = query.filter(WorkOrder.status == statuses[0])
+        elif len(statuses) > 1:
+            query = query.filter(WorkOrder.status.in_(statuses))
     if keyword:
+        like = f'%{keyword}%'
         query = query.join(User, WorkOrder.user_id == User.id).filter(
-            db.or_(WorkOrder.order_no.like(f'%{keyword}%'), WorkOrder.contact_name.like(f'%{keyword}%'), User.nickname.like(f'%{keyword}%'))
+            db.or_(
+                WorkOrder.order_no.like(like),
+                WorkOrder.contact_name.like(like),
+                WorkOrder.contact_phone.like(like),
+                WorkOrder.fault_type.like(like),
+                WorkOrder.fault_desc.like(like),
+                User.nickname.like(like),
+                User.phone.like(like),
+            )
         )
-    orders = query.order_by(WorkOrder.created_at.desc()).limit(200).all()
-    return jsonify({'orders': [o.to_dict() for o in orders]})
+
+    total = query.count()
+    orders = (query.order_by(WorkOrder.created_at.desc())
+              .offset((page - 1) * page_size).limit(page_size).all())
+
+    # KPI 统计
+    kpi_rows = (db.session.query(WorkOrder.status, db.func.count(WorkOrder.id))
+                .group_by(WorkOrder.status).all())
+    kpi = {s: c for s, c in kpi_rows}
+
+    return jsonify({
+        'items': [o.to_dict() for o in orders],
+        'orders': [o.to_dict() for o in orders],
+        'total': total,
+        'page': page,
+        'page_size': page_size,
+        'kpi': kpi,
+    })
 
 @bp.route('/admin/orders/<int:order_id>', methods=['GET'])
 @login_required
 def get_order_detail(order_id):
     order = WorkOrder.query.get_or_404(order_id)
     logs = order.status_logs.all()
-    return jsonify({'order': order.to_dict(), 'logs': [l.to_dict() for l in logs]})
+    return jsonify({
+        'order': order.to_dict(),
+        'status_logs': [l.to_dict() for l in logs],
+    })
 
 
 # ============================================================

@@ -59,6 +59,9 @@ services:
       - ERP_API_KEY=${ERP_API_KEY}
       - GUNICORN_WORKERS=${GUNICORN_WORKERS:-4}
       - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-60}
+      - UPLOAD_DIR=/app/uploads
+    volumes:
+      - upload_data:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -152,6 +155,8 @@ volumes:
     name: hongmen_mysql_data
   redis_data:
     name: hongmen_redis_data
+  upload_data:
+    name: hongmen_upload_data
 
 networks:
   app-network:
