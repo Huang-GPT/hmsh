@@ -71,15 +71,16 @@
             <th>激活日期</th>
             <th>截至日期</th>
             <th>状态</th>
+            <th class="col-bound">已绑定</th>
             <th class="col-actions sticky-right">操作</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading && products.length === 0">
-            <td colspan="18" class="state-cell">加载中…</td>
+            <td colspan="19" class="state-cell">加载中…</td>
           </tr>
           <tr v-else-if="products.length === 0">
-            <td colspan="18" class="state-cell">
+            <td colspan="19" class="state-cell">
               <div class="empty-cell">
                 <div class="empty-icon">📦</div>
                 <div class="empty-text">暂无产品数据</div>
@@ -119,9 +120,24 @@
                 {{ p.status === 'active' ? '有效' : '无效' }}
               </van-tag>
             </td>
+            <td class="col-bound">
+              <van-tag
+                v-if="(p.bound_count || 0) > 0"
+                type="warning"
+                size="mini"
+                class="bound-badge"
+                @click="openBindings(p)"
+              >{{ p.bound_count }} 人</van-tag>
+              <span v-else class="bound-zero">未绑定</span>
+            </td>
             <td class="col-actions sticky-right">
               <a class="op-link" @click="previewProduct(p)">查看</a>
               <a class="op-link primary" @click="editProduct(p)">编辑</a>
+              <a
+                v-if="(p.bound_count || 0) > 0"
+                class="op-link warn"
+                @click="openBindings(p)"
+              >绑定({{ p.bound_count }})</a>
               <a class="op-link danger" @click="removeProduct(p)">删除</a>
             </td>
           </tr>
@@ -291,12 +307,58 @@
         </span></div>
       </div>
     </van-dialog>
+
+    <!-- 绑定用户列表弹窗 -->
+    <van-dialog
+      v-model="showBindings"
+      :title="bindingsTitle"
+      :show-confirm-button="false"
+      cancel-button-text="关闭"
+      close-on-click-overlay
+    >
+      <div class="bindings-view" v-if="bindingsProduct">
+        <div class="bindings-summary">
+          <div class="sum-row"><span class="label">二维码</span><code>{{ bindingsProduct.qr_code }}</code></div>
+          <div class="sum-row"><span class="label">产品</span><span>{{ bindingsProduct.product_name || bindingsProduct.model }}</span></div>
+          <div class="sum-row"><span class="label">已绑定</span>
+            <van-tag :type="bindings.length > 0 ? 'warning' : 'default'" size="mini">
+              共 {{ bindings.length }} 人
+            </van-tag>
+          </div>
+        </div>
+        <div v-if="bindingsLoading" class="bindings-loading">加载中…</div>
+        <div v-else-if="bindings.length === 0" class="bindings-empty">暂无绑定记录</div>
+        <div v-else class="bindings-list">
+          <div v-for="b in bindings" :key="b.binding_id" class="binding-card">
+            <div class="binding-head">
+              <div class="binding-user">
+                <span class="user-nick">{{ b.nickname || '用户' }}</span>
+                <span class="user-phone">{{ b.phone || '—' }}</span>
+              </div>
+              <van-tag :type="b.bind_method === 'qrcode_sap' ? 'success' : 'primary'" size="mini">
+                {{ methodLabel(b.bind_method) }}
+              </van-tag>
+            </div>
+            <div class="binding-foot">
+              <span class="bind-time">绑定于 {{ formatDateTime(b.bind_time) }}</span>
+              <van-button
+                size="mini"
+                type="danger"
+                plain
+                @click="confirmUnbind(b)"
+              >强制解绑</van-button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </van-dialog>
   </div>
 </template>
 
 <script>
 import {
-  getAllProducts, createProduct, updateProduct, deleteProduct, importProducts
+  getAllProducts, createProduct, updateProduct, deleteProduct, importProducts,
+  getProductBindings, adminUnbind
 } from '@/api/admin'
 
 const emptyForm = () => ({
@@ -333,6 +395,11 @@ export default {
       lastImport: { inserted: 0, skipped: [], errors: [], total: 0, filename: '' },
 
       showFormat: false,
+
+      showBindings: false,
+      bindingsProduct: null,
+      bindings: [],
+      bindingsLoading: false,
     }
   },
   computed: {
@@ -352,6 +419,10 @@ export default {
     someSelected() {
       return this.selectedIds.length > 0
     },
+    bindingsTitle() {
+      if (!this.bindingsProduct) return '已绑定用户'
+      return `已绑定用户 · ${this.bindingsProduct.qr_code || ('#' + this.bindingsProduct.id)}`
+    },
   },
   watch: {
     statusFilter() {
@@ -366,6 +437,14 @@ export default {
     formatDate(d) {
       if (!d) return '—'
       return String(d).substring(0, 10)
+    },
+    formatDateTime(d) {
+      if (!d) return '—'
+      const s = String(d)
+      return s.length >= 16 ? s.substring(0, 16).replace('T', ' ') : s
+    },
+    methodLabel(m) {
+      return { qrcode_sap: '扫码', qrcode_product: '序列号', manual: '手动' }[m] || m
     },
 
     async loadProducts(targetPage) {
@@ -621,6 +700,44 @@ export default {
         this.loadProducts()
       } catch (e) {
         this.$toast('删除失败')
+      }
+    },
+
+    // === 绑定管理 ===
+    async openBindings(p) {
+      this.bindingsProduct = p
+      this.bindings = []
+      this.showBindings = true
+      this.bindingsLoading = true
+      try {
+        const res = await getProductBindings(p.id)
+        this.bindings = (res.data && res.data.bindings) || []
+        // 同步更新列表里的计数（如果返回的 bound_count 不同）
+        if (p.bound_count !== this.bindings.length) {
+          p.bound_count = this.bindings.length
+        }
+      } catch (e) {
+        this.$toast && this.$toast('加载绑定列表失败')
+      } finally {
+        this.bindingsLoading = false
+      }
+    },
+    async confirmUnbind(b) {
+      const ok = await this.$dialog.confirm({
+        title: '强制解绑确认',
+        message: `确定要解除 ${b.phone || b.nickname || ('用户#' + b.user_id)} 的绑定吗？\n该用户的报修记录不会受影响。`,
+      }).catch(() => false)
+      if (!ok) return
+      try {
+        await adminUnbind(b.binding_id)
+        this.$toast.success('已解绑')
+        // 从本地列表移除
+        this.bindings = this.bindings.filter(x => x.binding_id !== b.binding_id)
+        if (this.bindingsProduct) {
+          this.bindingsProduct.bound_count = this.bindings.length
+        }
+      } catch (e) {
+        this.$toast && this.$toast((e && e.response && e.response.data && e.response.data.error) || '解绑失败')
       }
     },
 
@@ -921,6 +1038,97 @@ export default {
 .op-link.primary:hover { color: #0570d4; }
 .op-link.danger { color: #ee0a24; }
 .op-link.danger:hover { color: #c8050a; }
+.op-link.warn { color: #ff976a; }
+.op-link.warn:hover { color: #e07643; }
+
+/* ===== 绑定列 ===== */
+.col-bound {
+  text-align: center;
+  min-width: 90px;
+}
+.bound-badge {
+  cursor: pointer;
+  font-weight: 600;
+}
+.bound-badge:hover {
+  opacity: 0.85;
+}
+.bound-zero {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+/* ===== 绑定列表弹窗 ===== */
+.bindings-view {
+  padding: 16px 20px 8px;
+  min-width: 320px;
+}
+.bindings-summary {
+  background: #f5f6f8;
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.bindings-summary .sum-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.bindings-summary .sum-row .label {
+  color: #6b7280;
+  min-width: 60px;
+}
+.bindings-loading,
+.bindings-empty {
+  text-align: center;
+  padding: 30px 0;
+  color: #9ca3af;
+  font-size: 13px;
+}
+.bindings-list {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.binding-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  background: #fff;
+}
+.binding-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.binding-user {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.user-nick {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1f2937;
+}
+.user-phone {
+  font-size: 12px;
+  color: #6b7280;
+}
+.binding-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px dashed #f0f0f0;
+  padding-top: 8px;
+}
+.bind-time {
+  font-size: 12px;
+  color: #9ca3af;
+}
 
 /* ===== Loading / empty cells ===== */
 .state-cell {

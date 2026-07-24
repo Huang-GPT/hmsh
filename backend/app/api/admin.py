@@ -564,7 +564,8 @@ def _coerce_csv_row(row):
 @bp.route('/admin/products', methods=['GET'])
 @login_required
 def admin_list_products():
-    """产品库列表，支持关键词搜索 + 分页"""
+    """产品库列表，支持关键词搜索 + 分页 + 绑定统计"""
+    from app.models.product import UserProduct
     keyword = request.args.get('keyword', '').strip()
     status = request.args.get('status', '').strip()
     page = max(1, request.args.get('page', default=1, type=int))
@@ -588,8 +589,109 @@ def admin_list_products():
 
     total = q.count()
     items = q.order_by(Product.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    # 一次聚合查询补全已绑定计数（避免 N+1）
+    item_ids = [p.id for p in items]
+    count_map = {}
+    if item_ids:
+        from sqlalchemy import func
+        rows = (db.session.query(UserProduct.product_id, func.count(UserProduct.id))
+                .filter(UserProduct.product_id.in_(item_ids))
+                .group_by(UserProduct.product_id).all())
+        count_map = {pid: cnt for pid, cnt in rows}
+
+    serialized = []
+    for p in items:
+        d = p.to_dict()
+        d['bound_count'] = int(count_map.get(p.id, 0))
+        serialized.append(d)
+
     return jsonify({
-        'items': [p.to_dict() for p in items],
+        'items': serialized,
+        'total': total,
+        'page': page,
+        'page_size': page_size,
+    })
+
+
+@bp.route('/admin/products/<int:product_id>/bindings', methods=['GET'])
+@login_required
+def admin_product_bindings(product_id):
+    """单个产品的全部绑定用户列表（手机号 + 昵称 + 绑定时间 + 方式）"""
+    from app.models.product import UserProduct
+    from app.models.user import User
+    p = Product.query.get_or_404(product_id)
+    ups = (UserProduct.query.filter_by(product_id=product_id)
+           .order_by(UserProduct.bind_time.desc()).all())
+    bindings = []
+    for up in ups:
+        u = User.query.get(up.user_id)
+        bindings.append({
+            'user_id': up.user_id,
+            'phone': u.phone if u else None,
+            'nickname': u.nickname if u else None,
+            'bind_time': up.bind_time.isoformat() if up.bind_time else None,
+            'bind_method': up.bind_method,
+            'binding_id': up.id,
+        })
+    return jsonify({
+        'product': p.to_dict(),
+        'bindings': bindings,
+        'bound_count': len(bindings),
+    })
+
+
+@bp.route('/admin/bindings', methods=['GET'])
+@login_required
+def admin_list_bindings():
+    """所有用户绑定记录列表（管理后台总览用）
+       支持按 qr_code / phone / bind_method 过滤"""
+    from app.models.product import UserProduct
+    from app.models.user import User
+    keyword = request.args.get('keyword', '').strip()
+    method = request.args.get('method', '').strip()
+    page = max(1, request.args.get('page', default=1, type=int))
+    page_size = min(200, max(1, request.args.get('page_size', default=50, type=int)))
+
+    q = UserProduct.query.join(Product, UserProduct.product_id == Product.id)
+    if keyword:
+        like = f'%{keyword}%'
+        from sqlalchemy import or_
+        q = q.join(User, UserProduct.user_id == User.id).filter(or_(
+            Product.qr_code.like(like),
+            Product.sales_no.like(like),
+            Product.product_name.like(like),
+            User.phone.like(like),
+            User.nickname.like(like),
+        ))
+    if method:
+        q = q.filter(UserProduct.bind_method == method)
+
+    total = q.count()
+    items = (q.order_by(UserProduct.bind_time.desc())
+             .offset((page - 1) * page_size).limit(page_size).all())
+
+    serialized = []
+    for up in items:
+        u = User.query.get(up.user_id)
+        p = Product.query.get(up.product_id)
+        serialized.append({
+            'binding_id': up.id,
+            'bind_time': up.bind_time.isoformat() if up.bind_time else None,
+            'bind_method': up.bind_method,
+            'user_id': up.user_id,
+            'phone': u.phone if u else None,
+            'nickname': u.nickname if u else None,
+            'user_status': u.status if u else None,
+            'product_id': up.product_id,
+            'qr_code': p.qr_code if p else None,
+            'sales_no': p.sales_no if p else None,
+            'product_name': p.product_name if p else (p.model if p else None),
+            'production_date': p.production_date.isoformat() if (p and p.production_date) else None,
+        })
+
+    return jsonify({
+        'items': serialized,
         'total': total,
         'page': page,
         'page_size': page_size,
@@ -769,4 +871,21 @@ def admin_import_products():
         'errors': errors,
         'total': inserted + len(skipped) + len(errors),
         'filename': f.filename,
+    })
+
+
+@bp.route('/admin/bindings/<int:binding_id>', methods=['DELETE'])
+@login_required
+@role_required('admin', 'operator')
+def admin_unbind(binding_id):
+    """管理员强制解绑单条用户绑定记录"""
+    from app.models.product import UserProduct
+    up = UserProduct.query.get_or_404(binding_id)
+    product_id = up.product_id
+    user_id = up.user_id
+    UserProduct.query.filter_by(id=binding_id).delete()
+    db.session.commit()
+    return jsonify({
+        'message': '解绑成功',
+        'unbound': {'user_id': user_id, 'product_id': product_id, 'binding_id': binding_id},
     })

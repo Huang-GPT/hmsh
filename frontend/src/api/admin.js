@@ -69,6 +69,18 @@ export function updateProduct(id, data) {
   return api.put(`/admin/products/${id}`, data)
 }
 
+export function getProductBindings(productId) {
+  return api.get(`/admin/products/${productId}/bindings`)
+}
+
+export function adminUnbind(bindingId) {
+  return api.delete(`/admin/bindings/${bindingId}`)
+}
+
+export function getAllBindings(params) {
+  return api.get('/admin/bindings', { params })
+}
+
 // 导入 CSV multipart/form-data
 export function importProducts(file, onProgress) {
   const form = new FormData()

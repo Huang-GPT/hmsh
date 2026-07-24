@@ -13,6 +13,7 @@ import AdminDashboard from '@/views/admin/AdminDashboard.vue'
 import AdminOrders from '@/views/admin/AdminOrders.vue'
 import AdminUsers from '@/views/admin/AdminUsers.vue'
 import AdminProducts from '@/views/admin/AdminProducts.vue'
+import AdminBindings from '@/views/admin/AdminBindings.vue'
 import AdminFaults from '@/views/admin/AdminFaults.vue'
 
 Vue.use(VueRouter)
@@ -67,6 +68,7 @@ const routes = [
       { path: 'orders', name: 'AdminOrders', component: AdminOrders },
       { path: 'users', name: 'AdminUsers', component: AdminUsers },
       { path: 'products', name: 'AdminProducts', component: AdminProducts },
+      { path: 'bindings', name: 'AdminBindings', component: AdminBindings },
       { path: 'faults', name: 'AdminFaults', component: AdminFaults }
     ]
   }
