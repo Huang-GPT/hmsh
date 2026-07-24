@@ -295,17 +295,18 @@
       >确认提交</van-button>
     </div>
 
-    <!-- 日期选择器 -->
-    <van-popup v-model="showDatePicker" position="bottom">
-      <van-date-picker
-        v-model="selectedDate"
-        :min-date="minDate"
-        :max-date="maxDate"
-        @confirm="onDateConfirm"
-        @cancel="showDatePicker = false"
-        title="选择期望日期"
-      />
-    </van-popup>
+    <!-- 日期选择器（van-calendar 点选日历格） -->
+    <van-calendar
+      v-model:show="showDatePicker"
+      :min-date="minDate"
+      :max-date="maxDate"
+      :default-date="selectedDateObj"
+      type="single"
+      color="#1989fa"
+      :show-confirm="true"
+      confirm-text="确定"
+      @confirm="onDateConfirm"
+    />
 
     <!-- 时段选择器 -->
     <van-popup v-model="showPeriodPicker" position="bottom">
@@ -357,7 +358,7 @@ export default {
       appointmentMode: 'asap',
 
       showDatePicker: false,
-      selectedDate: [],
+      selectedDateObj: new Date(),
       showPeriodPicker: false,
       periodColumns: [
         { text: '上午 (08:00-12:00)', value: 'AM' },
@@ -383,6 +384,28 @@ export default {
                /^1[3-9]\d{9}$/.test(this.form.contact_phone)
       }
       return true
+    },
+  },
+  watch: {
+    // 视频文件变化：同步 form.videos（vant 删除时自动 splice）
+    videoFiles: {
+      handler(newList) {
+        const newUrls = newList
+          .filter(f => f.status === 'done' && f._uploadedUrl)
+          .map(f => f._uploadedUrl)
+        this.form.videos = newUrls
+      },
+      deep: true,
+    },
+    // 图片文件变化：同步 form.images
+    imageFiles: {
+      handler(newList) {
+        const newUrls = newList
+          .filter(f => f.status === 'done' && f._uploadedUrl)
+          .map(f => f._uploadedUrl)
+        this.form.images = newUrls
+      },
+      deep: true,
     },
   },
   created() {
@@ -454,37 +477,56 @@ export default {
       this.step += 1
     },
 
-    // ===== 图片 / 视频上传 =====
+    // ===== 图片 / 视频 上传 =====
+    /**
+     * van-uploader 在 Vue 2 中有反应式坑：
+     *   - fileList 是 v-model 数组（反应式）
+     *   - 但数组项 file 是普通对象，修改属性不会触发响应
+     *   - 所以直接 file.status = 'done' 不会让 UI 更新
+     * 修复：上传完成后用 splice + 替换对象，强制触发响应
+     */
+    _markFileDone(file, kind, url) {
+      const list = kind === 'video' ? this.videoFiles : this.imageFiles
+      const idx = list.indexOf(file)
+      if (idx < 0) return
+      const newItem = Object.assign({}, file, {
+        status: 'done',
+        message: '',
+        _uploadedUrl: url,
+        url: url,
+      })
+      // 用 splice 替换（Vue 2 反应式触发）
+      list.splice(idx, 1, newItem)
+    },
+    _markFileFailed(file, message) {
+      const list = file._isVideo ? this.videoFiles : this.imageFiles
+      const idx = list.indexOf(file)
+      if (idx < 0) return
+      const newItem = Object.assign({}, file, {
+        status: 'failed',
+        message,
+      })
+      list.splice(idx, 1, newItem)
+    },
+
     async uploadImage(file) {
-      // file = { file: File, content: dataUrl } 或数组
       const f = file.file || file
       if (!f) return
-      const placeholder = { status: 'uploading', message: '上传中', url: file.content }
       try {
         const fd = new FormData()
         fd.append('file', f)
         fd.append('kind', 'image')
         const res = await uploadMedia(fd)
         const url = (res.data && res.data.url) || ''
-        if (file.status) file.status = 'done'
-        if (file.message) file.message = ''
-        // 保存到 form.images
-        if (url) {
-          this.form.images.push(url)
-        }
-        return placeholder
+        this._markFileDone(file, 'image', url)
       } catch (e) {
-        if (file.status) file.status = 'failed'
-        if (file.message) file.message = '上传失败'
+        this._markFileFailed(file, '上传失败')
         this.$toast && this.$toast('图片上传失败')
         throw e
       }
     },
-    async deleteImage(file, detail) {
-      const idx = (detail && detail.index !== undefined) ? detail.index : this.imageFiles.indexOf(file)
-      if (idx >= 0 && idx < this.form.images.length) {
-        this.form.images.splice(idx, 1)
-      }
+    deleteImage(file, detail) {
+      // van-uploader 内部 splice（响应式），watch 会同步 form.images
       return true
     },
     async uploadVideo(file) {
@@ -496,28 +538,27 @@ export default {
         fd.append('kind', 'video')
         const res = await uploadMedia(fd)
         const url = (res.data && res.data.url) || ''
-        if (file.status) file.status = 'done'
-        if (url) {
-          this.form.videos.push(url)
-        }
+        this._markFileDone(file, 'video', url)
       } catch (e) {
-        if (file.status) file.status = 'failed'
-        if (file.message) file.message = '上传失败'
+        this._markFileFailed(file, '上传失败')
         this.$toast && this.$toast('视频上传失败')
         throw e
       }
     },
-    async deleteVideo(file, detail) {
-      const idx = (detail && detail.index !== undefined) ? detail.index : this.videoFiles.indexOf(file)
-      if (idx >= 0 && idx < this.form.videos.length) {
-        this.form.videos.splice(idx, 1)
-      }
+    deleteVideo(file, detail) {
+      // van-uploader 内部 splice（响应式），watch 会同步 form.videos
       return true
     },
 
     // ===== 日期 / 时段 =====
-    onDateConfirm({ selectedValues }) {
-      this.form.appointment_date = selectedValues.join('-')
+    onDateConfirm(date) {
+      // van-calendar confirm 回调：date 是 Date 对象
+      const d = date instanceof Date ? date : (date && date[0]) || new Date()
+      const yyyy = d.getFullYear()
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const dd = String(d.getDate()).padStart(2, '0')
+      this.form.appointment_date = `${yyyy}-${mm}-${dd}`
+      this.selectedDateObj = d
       this.showDatePicker = false
     },
     onPeriodConfirm({ selectedOptions }) {

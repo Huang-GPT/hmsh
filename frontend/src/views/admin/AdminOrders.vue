@@ -86,13 +86,14 @@
             </td>
             <td>
               <div class="prod-cell">
-                <span class="prod-name">{{ o.product_model || '—' }}</span>
-                <span v-if="o.product_serial" class="prod-serial">{{ o.product_serial }}</span>
+                <span class="prod-name">{{ o.product_name || o.product_model || '—' }}</span>
+                <span v-if="o.product_qr_code" class="prod-serial">{{ o.product_qr_code }}</span>
               </div>
             </td>
             <td>
               <div class="fault-cell">
-                <van-tag size="mini" type="warning" class="mr-1">{{ o.fault_type || '—' }}</van-tag>
+                <van-tag v-if="o.fault_category_name" size="mini" type="primary" class="mr-1">{{ o.fault_category_name }}</van-tag>
+                <van-tag size="mini" type="warning">{{ o.fault_type || '—' }}</van-tag>
               </div>
             </td>
             <td>
@@ -152,14 +153,23 @@
           <van-cell title="报修产品">
             <template #value>
               <div class="cell-value-stack">
-                <span class="cv-main">{{ currentOrder.product_model || '—' }}</span>
+                <span class="cv-main">{{ currentOrder.product_name || currentOrder.product_model || '—' }}</span>
                 <span v-if="currentOrder.product_serial" class="cv-sub">序列: {{ currentOrder.product_serial }}</span>
+                <span v-if="currentOrder.product_qr_code" class="cv-sub">二维码: {{ currentOrder.product_qr_code }}</span>
+                <span v-if="currentOrder.product_sales_no" class="cv-sub">销售单: {{ currentOrder.product_sales_no }}</span>
               </div>
             </template>
           </van-cell>
           <van-cell title="故障分类">
             <template #value>
-              <van-tag type="warning" size="mini">{{ currentOrder.fault_type || '—' }}</van-tag>
+              <div class="cell-value-stack">
+                <span class="cv-main">
+                  <van-tag v-if="currentOrder.fault_category_name" type="primary" size="mini" class="mr-1">
+                    {{ currentOrder.fault_category_name }}
+                  </van-tag>
+                  <van-tag type="warning" size="mini">{{ currentOrder.fault_type || '—' }}</van-tag>
+                </span>
+              </div>
             </template>
           </van-cell>
           <van-cell title="故障描述">
@@ -170,26 +180,26 @@
           <van-cell v-if="currentOrder.fault_address" title="故障地址" :value="currentOrder.fault_address" />
           <van-cell v-if="currentOrder.appointment_date" title="期望时间">
             <template #value>
-              {{ currentOrder.appointment_date }}
-              <span v-if="currentOrder.appointment_period === 'AM'">上午</span>
-              <span v-else-if="currentOrder.appointment_period === 'PM'">下午</span>
+              <span class="cv-main">{{ currentOrder.appointment_date }}</span>
+              <span v-if="currentOrder.appointment_period === 'AM'" class="cv-sub">上午</span>
+              <span v-else-if="currentOrder.appointment_period === 'PM'" class="cv-sub">下午</span>
             </template>
           </van-cell>
-          <van-cell title="联系人">
+          <van-cell title="联系信息">
             <template #value>
-              <span class="cv-main">{{ currentOrder.contact_name }}</span>
-            </template>
-          </van-cell>
-          <van-cell title="联系电话">
-            <template #value>
-              <a :href="`tel:${currentOrder.contact_phone}`">{{ currentOrder.contact_phone }}</a>
+              <div class="cell-value-stack">
+                <span class="cv-main">{{ currentOrder.contact_name }}</span>
+                <a :href="`tel:${currentOrder.contact_phone}`" class="cv-sub">{{ currentOrder.contact_phone }}</a>
+              </div>
             </template>
           </van-cell>
           <van-cell v-if="currentOrder.service_point_name" title="服务点" :value="currentOrder.service_point_name" />
           <van-cell v-if="currentOrder.engineer_name" title="工程师">
             <template #value>
-              <span class="cv-main">{{ currentOrder.engineer_name }}</span>
-              <span v-if="currentOrder.engineer_phone" class="cv-sub">{{ currentOrder.engineer_phone }}</span>
+              <div class="cell-value-stack">
+                <span class="cv-main">{{ currentOrder.engineer_name }}</span>
+                <a v-if="currentOrder.engineer_phone" :href="`tel:${currentOrder.engineer_phone}`" class="cv-sub">{{ currentOrder.engineer_phone }}</a>
+              </div>
             </template>
           </van-cell>
           <van-cell v-if="currentOrder.reject_reason" title="拒绝原因">
@@ -198,6 +208,7 @@
           <van-cell v-if="currentOrder.cancel_reason" title="撤销原因">
             <template #value><span style="color:#ee0a24">{{ currentOrder.cancel_reason }}</span></template>
           </van-cell>
+          <van-cell title="创建时间" :value="formatDateTime(currentOrder.created_at)" />
         </van-cell-group>
 
         <!-- 图片 / 视频 -->
