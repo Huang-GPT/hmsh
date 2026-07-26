@@ -161,12 +161,18 @@
       </van-cell-group>
 
       <van-cell-group inset class="block-group">
-        <van-cell
-          title="期望服务时间"
-          is-link
-          :value="appointmentDisplay"
-          @click="openAppointmentPicker"
-        />
+        <van-cell title="期望服务时间">
+          <template #value>
+            <input
+              type="date"
+              v-model="form.appointment_date"
+              :min="minDateStr"
+              :max="maxDateStr"
+              class="date-input"
+              placeholder="点击选择日期"
+            />
+          </template>
+        </van-cell>
       </van-cell-group>
 
       <van-cell-group inset class="block-group">
@@ -249,78 +255,6 @@
         class="bottom-btn"
       >确认提交</van-button>
     </div>
-
-    <!-- 期望服务时间一体化选择器（标准设计：快捷 tab + 自选日历 + 时段） -->
-    <van-popup
-      v-model="showAppointmentPicker"
-      position="bottom"
-      round
-      closeable
-      close-icon="cross"
-      :style="{ maxHeight: '85vh' }"
-      @closed="onAppointmentClosed"
-    >
-      <div class="appt-picker">
-        <!-- 顶部标题 -->
-        <div class="appt-title">期望上门时间</div>
-
-        <!-- 快捷 tab：尽快 / 今天 / 明天 / 后天 / 自选 -->
-        <van-tabs
-          v-model:active="apptMode"
-          line-width="20px"
-          line-height="2px"
-          color="#1989fa"
-          title-active-color="#1989fa"
-          title-inactive-color="#6b7280"
-          @click-tab="onApptTabClick"
-        >
-          <van-tab title="尽快" name="asap" />
-          <van-tab title="今天" name="today" />
-          <van-tab title="明天" name="tomorrow" />
-          <van-tab title="后天" name="day_after" />
-          <van-tab title="自选" name="custom" />
-        </van-tabs>
-
-        <!-- 自选模式：日历 + 时段 -->
-        <div v-if="apptMode === 'custom'" class="appt-custom">
-          <van-calendar
-            :value="calendarShow"
-            :min-date="minDate"
-            :max-date="maxDate"
-            :default-date="selectedDateObj"
-            type="single"
-            color="#1989fa"
-            :show-confirm="false"
-            @select="onCalendarSelect"
-            class="appt-calendar"
-          />
-
-          <div class="period-row">
-            <div class="period-label">时段：</div>
-            <van-button
-              :type="form.appointment_period === 'AM' ? 'primary' : 'default'"
-              size="small"
-              plain
-              @click="form.appointment_period = 'AM'"
-              class="period-btn"
-            >上午 08:00-12:00</van-button>
-            <van-button
-              :type="form.appointment_period === 'PM' ? 'primary' : 'default'"
-              size="small"
-              plain
-              @click="form.appointment_period = 'PM'"
-              class="period-btn"
-            >下午 12:00-18:00</van-button>
-          </div>
-        </div>
-
-        <!-- 底部固定操作栏 -->
-        <div class="appt-actions">
-          <van-button size="large" plain @click="cancelAppointment">取消</van-button>
-          <van-button size="large" type="primary" :disabled="!canConfirmAppt" @click="confirmAppointment">确定</van-button>
-        </div>
-      </div>
-    </van-popup>
   </div>
 </template>
 
@@ -335,20 +269,9 @@ const emptyForm = () => ({
   images: [],
   fault_address: '',
   appointment_date: '',
-  appointment_period: '',
   contact_name: '',
   contact_phone: '',
 })
-
-// 期望服务时间快捷 tab → 后端日期格式 (yyyy-mm-dd)
-function addDays(base, n) {
-  const d = new Date(base)
-  d.setDate(d.getDate() + n)
-  const yyyy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
-}
 
 export default {
   name: 'ProductRepair',
@@ -367,11 +290,6 @@ export default {
 
       form: emptyForm(),
       imageFiles: [],
-      // 期望服务时间一体化选择器
-      showAppointmentPicker: false,
-      apptMode: 'asap',  // asap / today / tomorrow / day_after / custom
-      calendarShow: false,  // van-calendar v2 用 value prop，不是 v-model:show
-      selectedDateObj: new Date(),
 
       submitting: false,
       minDate: new Date(),
@@ -393,28 +311,16 @@ export default {
       }
       return true
     },
-    // 表单里显示的"期望时间"字符串（用于 cell.value）
+    // HTML5 <input type="date"> 需要 yyyy-mm-dd 字符串
+    minDateStr() {
+      return this._fmtDate(this.minDate)
+    },
+    maxDateStr() {
+      return this._fmtDate(this.maxDate)
+    },
+    // Step 4 确认页显示的"期望时间"
     appointmentDisplay() {
-      if (!this.form.appointment_date && !this._apptIsAsap) return '请选择（可选）'
-      if (this._apptIsAsap) return '尽快上门'
-      const period = this.form.appointment_period === 'AM' ? '上午'
-                   : this.form.appointment_period === 'PM' ? '下午' : ''
-      return `${this.form.appointment_date}${period ? ' ' + period : ''}`
-    },
-    _apptIsAsap() {
-      return this.apptMode === 'asap'
-    },
-    canConfirmAppt() {
-      if (this.apptMode === 'asap') return true
-      // today / tomorrow / day_after：自动填好日期，但时段必选
-      if (['today', 'tomorrow', 'day_after'].includes(this.apptMode)) {
-        return !!this.form.appointment_period
-      }
-      // custom：日期 + 时段 都必填
-      if (this.apptMode === 'custom') {
-        return !!this.form.appointment_date && !!this.form.appointment_period
-      }
-      return false
+      return this.form.appointment_date || '尽快上门（未指定日期）'
     },
   },
   watch: {
@@ -434,6 +340,14 @@ export default {
     this.loadCategories()
   },
   methods: {
+    _fmtDate(d) {
+      if (!d) return ''
+      const dt = d instanceof Date ? d : new Date(d)
+      const yyyy = dt.getFullYear()
+      const mm = String(dt.getMonth() + 1).padStart(2, '0')
+      const dd = String(dt.getDate()).padStart(2, '0')
+      return `${yyyy}-${mm}-${dd}`
+    },
     onBack() {
       if (this.step > 1) {
         this.step -= 1
@@ -549,75 +463,9 @@ export default {
       return true
     },
 
-    // ===== 期望服务时间一体化选择器 =====
-    /** 打开选择器时，根据现有数据反推应当激活的 tab */
-    openAppointmentPicker() {
-      // 反推 apptMode
-      const today = addDays(new Date(), 0)
-      const tomorrow = addDays(new Date(), 1)
-      const dayAfter = addDays(new Date(), 2)
-      if (!this.form.appointment_date && !this.form.appointment_period) {
-        // 首次打开：默认 "尽快"
-        this.apptMode = 'asap'
-      } else if (this.form.appointment_date === today) {
-        this.apptMode = 'today'
-      } else if (this.form.appointment_date === tomorrow) {
-        this.apptMode = 'tomorrow'
-      } else if (this.form.appointment_date === dayAfter) {
-        this.apptMode = 'day_after'
-      } else {
-        this.apptMode = 'custom'
-      }
-      this.showAppointmentPicker = true
-    },
-    /** 切换 tab 时，自动填充日期 */
-    onApptTabClick(tab) {
-      const name = tab && tab.name
-      this.apptMode = name
-      const today = new Date()
-      if (name === 'asap') {
-        // 尽快：清空日期 + 时段，后端不传 appointment_date
-        this.form.appointment_date = ''
-        this.form.appointment_period = ''
-      } else if (name === 'today') {
-        this.form.appointment_date = addDays(today, 0)
-      } else if (name === 'tomorrow') {
-        this.form.appointment_date = addDays(today, 1)
-      } else if (name === 'day_after') {
-        this.form.appointment_date = addDays(today, 2)
-      } else if (name === 'custom') {
-        // 自选：如果之前没选日期，默认明天
-        if (!this.form.appointment_date) {
-          this.form.appointment_date = addDays(today, 1)
-          this.selectedDateObj = new Date(today.getTime() + 24 * 3600 * 1000)
-        }
-      }
-    },
-    /** 用户从自选日历点选日期 */
-    onCalendarSelect(date) {
-      const d = date instanceof Date ? date : (date && date[0])
-      if (!d) return
-      this.form.appointment_date = addDays(d, 0)
-      this.selectedDateObj = d
-    },
-    /** 关闭 popup 的回调 */
-    onAppointmentClosed() {
-      // 重置 apptMode 到当前 form 真实状态，下次打开才能正确反推
-      // 不必立即刷新 apptMode，因为 openAppointmentPicker 会反推
-    },
-    cancelAppointment() {
-      // 取消：恢复原状不实际改动（state 已经赋值了，需要回滚）
-      // 简化处理：直接关闭，下次打开重算
-      this.showAppointmentPicker = false
-    },
-    confirmAppointment() {
-      if (!this.canConfirmAppt) {
-        this.$toast && this.$toast('请完整选择日期和时段')
-        return
-      }
-      // 如果选了尽快但时段还在，保留时段（兼容老数据）
-      this.showAppointmentPicker = false
-    },
+    // ===== 期望服务时间 =====
+    // 仅日期，<input type="date"> v-model 自动同步到 form.appointment_date
+    // 这里不再需要额外方法
 
     // ===== 提交 =====
     async submitOrder() {
@@ -633,11 +481,9 @@ export default {
           contact_name: this.form.contact_name,
           contact_phone: this.form.contact_phone,
         }
-        if (this.apptMode !== 'asap' && this.form.appointment_date) {
+        // 期望日期（可选；为空表示尽快上门）
+        if (this.form.appointment_date) {
           payload.appointment_date = this.form.appointment_date
-          if (this.form.appointment_period) {
-            payload.appointment_period = this.form.appointment_period
-          }
         }
         const res = await createOrder(payload)
         const orderNo = (res.data && res.data.order_no) || ''
@@ -930,49 +776,23 @@ export default {
   margin-top: 1px;
 }
 
-/* === 期望服务时间选择器（一体化 popup） === */
-.appt-picker {
-  padding-top: 28px;
-  padding-bottom: 12px;
-}
-.appt-title {
-  text-align: center;
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 12px;
-}
-.appt-custom {
-  padding: 8px 16px 16px;
-  max-height: 50vh;
-  overflow-y: auto;
-}
-.appt-calendar {
-  --calendar-height: 320px;
-}
-.period-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 0;
-  border-top: 1px solid #f3f4f6;
-}
-.period-label {
+/* === 期望服务时间日期选择（与后台 AdminProducts 一致） === */
+.date-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  text-align: right;
   font-size: 14px;
-  color: #4b5563;
-  flex-shrink: 0;
+  color: #1f2937;
+  width: 60%;
+  font-family: inherit;
 }
-.period-btn {
-  flex: 1;
+.date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
 }
-.appt-actions {
-  display: flex;
-  gap: 12px;
-  padding: 12px 16px;
-  border-top: 1px solid #f3f4f6;
-}
-.appt-actions .van-button {
-  flex: 1;
+.date-input::placeholder {
+  color: #c8c9cc;
 }
 
 /* === 底部按钮 === */
