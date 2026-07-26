@@ -15,4 +15,4 @@ class Config:
     JWT_EXPIRY_HOURS = 2
     BCRYPT_LOG_ROUNDS = 12
     UPLOAD_DIR = os.environ.get('UPLOAD_DIR') or '/app/uploads'
-    MAX_CONTENT_LENGTH = 120 * 1024 * 1024  # 120MB max upload
+    MAX_CONTENT_LENGTH = 20 * 1024 * 1024  # 20MB max upload (视频已禁用)

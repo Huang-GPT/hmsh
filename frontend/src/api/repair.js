@@ -52,10 +52,10 @@ export function createOrder(data) {
   return api.post('/customer/orders', data)
 }
 
-// ========== 图片 / 视频上传 ==========
+// ========== 图片上传（视频已禁用） ==========
 export function uploadMedia(formData) {
   return api.post('/upload/media', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 60000,
+    timeout: 30000,
   })
 }

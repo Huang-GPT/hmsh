@@ -83,7 +83,6 @@ class WorkOrder(db.Model):
             'fault_type': self.fault_type,
             'fault_desc': self.fault_desc,
             'images': self.images or [],
-            'videos': self.videos or [],
             'fault_address': self.fault_address,
             'appointment_date': self.appointment_date.isoformat() if self.appointment_date else None,
             'appointment_period': self.appointment_period,

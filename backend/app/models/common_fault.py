@@ -50,7 +50,6 @@ class CommonFault(db.Model):
             'content': self.content,
             'product_model': self.product_model,
             'images': self.images,
-            'videos': self.videos,
             'sort_order': self.sort_order,
             'view_count': self.view_count,
             'helpful_count': self.helpful_count,

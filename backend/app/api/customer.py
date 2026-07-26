@@ -142,7 +142,6 @@ def create_order():
         fault_type=data['fault_type'],
         fault_desc=data['fault_desc'],
         images=data.get('images'),
-        videos=data.get('videos'),
         fault_address=data.get('fault_address'),
         appointment_date=data.get('appointment_date'),
         appointment_period=data.get('appointment_period'),
