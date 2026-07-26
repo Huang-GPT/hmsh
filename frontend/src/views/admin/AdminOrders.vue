@@ -211,10 +211,10 @@
           <van-cell title="创建时间" :value="formatDateTime(currentOrder.created_at)" />
         </van-cell-group>
 
-        <!-- 图片 / 视频 -->
-        <div v-if="hasMedia(currentOrder)" class="media-section">
-          <div class="ms-title">现场图片 / 视频</div>
-          <div v-if="currentOrder.images && currentOrder.images.length" class="media-grid">
+        <!-- 图片 -->
+        <div v-if="currentOrder.images && currentOrder.images.length" class="media-section">
+          <div class="ms-title">现场图片</div>
+          <div class="media-grid">
             <div
               v-for="(img, i) in currentOrder.images"
               :key="`img-${i}`"
@@ -223,16 +223,6 @@
             >
               <img :src="img" :alt="`图片${i+1}`" loading="lazy" />
             </div>
-          </div>
-          <div v-if="currentOrder.videos && currentOrder.videos.length" class="video-list">
-            <video
-              v-for="(v, i) in currentOrder.videos"
-              :key="`vid-${i}`"
-              :src="v"
-              controls
-              preload="metadata"
-              class="video-item"
-            />
           </div>
         </div>
 
@@ -454,9 +444,6 @@ export default {
     },
     setStatusFilter(v) {
       this.statusFilter = v
-    },
-    hasMedia(o) {
-      return (o.images && o.images.length) || (o.videos && o.videos.length)
     },
     canAct(o) {
       return !['completed', 'closed', 'cancelled'].includes(o.status)
@@ -915,15 +902,6 @@ h3 {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-.video-list {
-  margin-top: 10px;
-}
-.video-item {
-  width: 100%;
-  border-radius: 6px;
-  background: #000;
-  margin-bottom: 8px;
 }
 
 /* ===== Log ===== */

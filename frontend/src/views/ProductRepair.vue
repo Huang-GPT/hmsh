@@ -152,26 +152,6 @@
       </van-cell-group>
 
       <van-cell-group inset class="block-group">
-        <van-cell title="上传视频（最多 2 个）" />
-        <div class="uploader-wrap">
-          <van-uploader
-            v-model="videoFiles"
-            :max-count="2"
-            :after-read="uploadVideo"
-            :before-delete="deleteVideo"
-            accept="video/*"
-          >
-            <template #default>
-              <div class="upload-btn">
-                <van-icon name="video-o" size="22" />
-                <div>上传视频</div>
-              </div>
-            </template>
-          </van-uploader>
-        </div>
-      </van-cell-group>
-
-      <van-cell-group inset class="block-group">
         <van-field
           v-model="form.fault_address"
           label="故障地址"
@@ -263,9 +243,6 @@
           <van-cell v-if="form.images && form.images.length" title="图片">
             <template #value>{{ form.images.length }} 张</template>
           </van-cell>
-          <van-cell v-if="form.videos && form.videos.length" title="视频">
-            <template #value>{{ form.videos.length }} 个</template>
-          </van-cell>
         </van-cell-group>
 
         <div class="confirm-warning">
@@ -329,7 +306,6 @@ const emptyForm = () => ({
   fault_type: '',
   fault_desc: '',
   images: [],
-  videos: [],
   fault_address: '',
   appointment_date: '',
   appointment_period: '',
@@ -354,7 +330,6 @@ export default {
 
       form: emptyForm(),
       imageFiles: [],
-      videoFiles: [],
       appointmentMode: 'asap',
 
       showDatePicker: false,
@@ -387,16 +362,6 @@ export default {
     },
   },
   watch: {
-    // 视频文件变化：同步 form.videos（vant 删除时自动 splice）
-    videoFiles: {
-      handler(newList) {
-        const newUrls = newList
-          .filter(f => f.status === 'done' && f._uploadedUrl)
-          .map(f => f._uploadedUrl)
-        this.form.videos = newUrls
-      },
-      deep: true,
-    },
     // 图片文件变化：同步 form.images
     imageFiles: {
       handler(newList) {
@@ -485,8 +450,8 @@ export default {
      *   - 所以直接 file.status = 'done' 不会让 UI 更新
      * 修复：上传完成后用 splice + 替换对象，强制触发响应
      */
-    _markFileDone(file, kind, url) {
-      const list = kind === 'video' ? this.videoFiles : this.imageFiles
+    _markFileDone(file, url) {
+      const list = this.imageFiles
       const idx = list.indexOf(file)
       if (idx < 0) return
       const newItem = Object.assign({}, file, {
@@ -495,18 +460,16 @@ export default {
         _uploadedUrl: url,
         url: url,
       })
-      // 用 splice 替换（Vue 2 反应式触发）
       list.splice(idx, 1, newItem)
     },
     _markFileFailed(file, message) {
-      const list = file._isVideo ? this.videoFiles : this.imageFiles
-      const idx = list.indexOf(file)
+      const idx = this.imageFiles.indexOf(file)
       if (idx < 0) return
       const newItem = Object.assign({}, file, {
         status: 'failed',
         message,
       })
-      list.splice(idx, 1, newItem)
+      this.imageFiles.splice(idx, 1, newItem)
     },
 
     async uploadImage(file) {
@@ -518,7 +481,7 @@ export default {
         fd.append('kind', 'image')
         const res = await uploadMedia(fd)
         const url = (res.data && res.data.url) || ''
-        this._markFileDone(file, 'image', url)
+        this._markFileDone(file, url)
       } catch (e) {
         this._markFileFailed(file, '上传失败')
         this.$toast && this.$toast('图片上传失败')
@@ -527,26 +490,6 @@ export default {
     },
     deleteImage(file, detail) {
       // van-uploader 内部 splice（响应式），watch 会同步 form.images
-      return true
-    },
-    async uploadVideo(file) {
-      const f = file.file || file
-      if (!f) return
-      try {
-        const fd = new FormData()
-        fd.append('file', f)
-        fd.append('kind', 'video')
-        const res = await uploadMedia(fd)
-        const url = (res.data && res.data.url) || ''
-        this._markFileDone(file, 'video', url)
-      } catch (e) {
-        this._markFileFailed(file, '上传失败')
-        this.$toast && this.$toast('视频上传失败')
-        throw e
-      }
-    },
-    deleteVideo(file, detail) {
-      // van-uploader 内部 splice（响应式），watch 会同步 form.videos
       return true
     },
 
@@ -576,7 +519,6 @@ export default {
           fault_type: this.form.fault_type,
           fault_desc: this.form.fault_desc,
           images: this.form.images,
-          videos: this.form.videos,
           fault_address: this.form.fault_address,
           contact_name: this.form.contact_name,
           contact_phone: this.form.contact_phone,
