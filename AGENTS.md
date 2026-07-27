@@ -30,7 +30,7 @@
 **服务器脚本文件**：
 - 放在 `scripts/server/` 子目录（不是 `scripts/`）
 - 文件名后缀 `_server.sh` 或 `_server.ps1`
-- README 头部必须写明 "本脚本需在服务器 PowerShell 跑"
+- `scripts/server/README.md` 必须说明每个脚本的用法 + 服务器 PowerShell 入口
 
 ## git 操作
 
