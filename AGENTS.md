@@ -5,32 +5,40 @@
 - 本 agent 跑在 opencode 容器/沙箱里，**无法 SSH 到任何服务器**
 - **无法直接执行 PowerShell/cmd**：所有 `bash` 工具调用在 Linux 容器内
 - 唯一可用通道：本地文件读写 (`read`/`write`/`edit`) + `bash` 跑本地命令（git、grep、npm、python、docker 仅限本地守护进程）
-- 远程服务器操作（scp/ssh/服务器内 docker）**100% 由用户执行**
+- 远程服务器操作（scp + 服务器终端命令）**100% 由用户执行**
+
+## 当前工作流（用户真实使用方式）
+
+**用户在阿里云 ECS 控制台用 VNC 远程终端操作服务器**（不是通过本地 SSH 转发）。
+
+- ❌ **禁止**输出 `ssh root@... "..."` 这种命令（用户本地 SSH 不通）
+- ✅ 服务器命令按 **「在服务器终端直接敲」** 格式输出（用户从 VNC 输入框粘过去执行）
 
 ## 输出脚本规范
 
 **任何涉及服务器操作的命令，必须显式标注：**
 
 ```
-=== 🖥️ 本地操作（你或本 agent 可执行） ===
-[ 命令 ]
+=== 🖥️ 本地操作（你在本地 PowerShell 跑） ===
+scp 本地文件  服务器路径
 
-=== 🌐 服务器操作（必须你在本地 PowerShell 跑） ===
-[ 命令 ]
+=== 🖥️ 服务器操作（你在阿里云 VNC 终端敲，或复制粘贴） ===
+cd /path/to/project
+docker compose up -d --force-recreate xxx
 
 === 📱 手机/浏览器操作（你在浏览器/手机上点） ===
-[ 操作 ]
+http://...
 ```
 
 **禁止**：
+- ❌ 输出 `ssh root@... "..."`（用户本地无法 SSH 出去）
 - ❌ 把服务器命令混在本 agent 的执行步骤里
 - ❌ 用 `&&` 把本地+服务器操作串成一个看似一锅端的脚本
-- ❌ 默认用户"在服务器 PowerShell 跑"——必须显式标注
 
 **服务器脚本文件**：
 - 放在 `scripts/server/` 子目录（不是 `scripts/`）
 - 文件名后缀 `_server.sh` 或 `_server.ps1`
-- `scripts/server/README.md` 必须说明每个脚本的用法 + 服务器 PowerShell 入口
+- `scripts/server/README.md` 必须说明每个脚本的用法 + 服务器 VNC 终端入口
 
 ## git 操作
 
