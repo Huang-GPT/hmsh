@@ -75,3 +75,10 @@ http://<域名>:<端口>/<路径>?<破缓存参数>
 3. **改代码前先看 build 输出有没有进 dist** — `grep -c "关键词" dist/js/app.*.js`
 4. **Vant 2 vs 3 区别** — `v-model:show` 是 Vant 3 语法，Vant 2 用 `value` prop
 5. **HTML5 `<input type="date">` 在 Vant 2 是稳的** — 别瞎套 van-calendar
+6. **判据一定要匹配 Vue 编译产物** — Vue 把 `type="date"` 编译成 `type:"date"`（冒号），不是 `type="date"`（等号）。**grep 源码用等号，grep dist 用冒号**，否则永远"看不到"实际产物。HTML 里写等号，编译后变冒号 —— 这是 webpack/JS 对象的固有规则。
+7. **判据用 ≥2 个独立匹配** — 一个匹配可能是巧合，至少要两个才能确认：
+   - 字段名（如 `appointment_date`）出现次数
+   - 独有标记（如 `minDateStr`）出现次数
+   - 旧代码标记（如 `van-calendar`、`apptMode`）出现次数（应为 0）
+   - 这三个 grep 一起，对应"代码改动 + 旧代码已清"两个维度
+8. **PowerShell 文件读取要用 `-Encoding UTF8`** — 默认 UTF-16，会让中文乱码、`IndexOf` 也匹配不到。Linux 服务器 grep 默认 UTF-8，没这问题。
