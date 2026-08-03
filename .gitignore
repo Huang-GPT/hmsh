@@ -58,3 +58,17 @@ docker-compose.override.yml
 # Agent / IDE local artifacts
 .mimocode/
 mimo.exe
+
+# Large runtime archives (don't commit)
+python311.tar
+*.tar
+*.tar.gz
+*.zip
+
+# Test artifacts (临时测试图/脚本)
+temp_test_qr.png
+test_zxing*.js
+
+# WeChat verification files (placeholders, not source)
+MP_verify_*.txt
+frontend/public/MP_verify_*.txt
