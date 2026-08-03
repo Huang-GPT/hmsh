@@ -187,7 +187,7 @@
           type="tel"
           placeholder="请输入联系电话"
           required
-          maxlength="11"
+          maxlength="20"
         />
       </van-cell-group>
     </div>
