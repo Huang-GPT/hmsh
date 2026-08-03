@@ -303,9 +303,12 @@ export default {
       if (this.step === 1) return !!this.selectedProduct
       if (this.step === 2) return !!this.selectedCategory && !!this.form.fault_type.trim()
       if (this.step === 3) {
-        return !!this.form.fault_desc.trim() &&
-               !!this.form.contact_name.trim() &&
-               /^1[3-9]\d{9}$/.test(this.form.contact_phone)
+        // fault_desc 可选（用户在 step 2 已填了 fault_type）
+        // contact_phone 容忍 +86 前缀 / 空格 / 横线
+        let phoneDigits = String(this.form.contact_phone || "").replace(/\D/g, "")
+        if (phoneDigits.length === 13 && phoneDigits.startsWith("86")) phoneDigits = phoneDigits.slice(2)
+        return !!this.form.contact_name.trim() &&
+               /^1[3-9]\d{9}$/.test(phoneDigits)
       }
       return true
     },
