@@ -162,16 +162,14 @@
 
       <van-cell-group inset class="block-group">
         <van-cell title="期望服务时间">
-          <template #value>
-            <input
-              type="date"
-              v-model="form.appointment_date"
-              :min="minDateStr"
-              :max="maxDateStr"
-              class="date-input"
-              placeholder="点击选择日期"
-            />
-          </template>
+          <input
+            type="date"
+            v-model="form.appointment_date"
+            :min="minDateStr"
+            :max="maxDateStr"
+            class="date-input"
+            placeholder="点击选择日期"
+          />
         </van-cell>
       </van-cell-group>
 
