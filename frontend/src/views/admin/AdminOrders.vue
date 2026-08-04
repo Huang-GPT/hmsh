@@ -87,13 +87,13 @@
             <td>
               <div class="prod-cell">
                 <span class="prod-name">{{ o.product_name || o.product_model || '—' }}</span>
-                <span v-if="o.product_qr_code" class="prod-serial">{{ o.product_qr_code }}</span>
+                <span class="prod-meta">二维码 {{ o.product_qr_code || '—' }}</span>
               </div>
             </td>
             <td>
               <div class="fault-cell">
-                <van-tag v-if="o.fault_category_name" size="mini" type="primary" class="mr-1">{{ o.fault_category_name }}</van-tag>
-                <van-tag size="mini" type="warning">{{ o.fault_type || '—' }}</van-tag>
+                <span class="fault-cat">{{ o.fault_category_name || '未分类' }}</span>
+                <span class="fault-type">{{ o.fault_type || '—' }}</span>
               </div>
             </td>
             <td>
@@ -105,6 +105,9 @@
             <td class="col-time">
               <div>{{ formatDate(o.created_at) }}</div>
               <div class="row-meta">{{ formatTime(o.created_at) }}</div>
+              <div v-if="o.appointment_date" class="row-meta appt-hint">
+                <van-icon name="clock-o" /> {{ o.appointment_date }}
+              </div>
             </td>
             <td class="col-actions" @click.stop>
               <a class="op-link primary" @click="showDetail(o)">详情</a>
@@ -142,24 +145,32 @@
         </div>
 
         <van-cell-group inset>
+          <!-- 报修用户 -->
           <van-cell title="报修用户">
             <template #value>
               <div class="cell-value-stack">
                 <span class="cv-main">{{ currentOrder.user_name || '—' }}</span>
-                <span class="cv-sub">{{ currentOrder.user_phone || '—' }}</span>
+                <a v-if="currentOrder.user_phone" :href="`tel:${currentOrder.user_phone}`" class="cv-sub">
+                  {{ currentOrder.user_phone }}
+                </a>
+                <span v-else class="cv-sub cv-empty">未填写手机</span>
               </div>
             </template>
           </van-cell>
+
+          <!-- 报修产品 -->
           <van-cell title="报修产品">
             <template #value>
               <div class="cell-value-stack">
                 <span class="cv-main">{{ currentOrder.product_name || currentOrder.product_model || '—' }}</span>
-                <span v-if="currentOrder.product_serial" class="cv-sub">序列: {{ currentOrder.product_serial }}</span>
-                <span v-if="currentOrder.product_qr_code" class="cv-sub">二维码: {{ currentOrder.product_qr_code }}</span>
-                <span v-if="currentOrder.product_sales_no" class="cv-sub">销售单: {{ currentOrder.product_sales_no }}</span>
+                <span class="cv-sub">二维码：{{ currentOrder.product_qr_code || '—' }}</span>
+                <span class="cv-sub">序列号：{{ currentOrder.product_serial || '—' }}</span>
+                <span class="cv-sub">销售单：{{ currentOrder.product_sales_no || '—' }}</span>
               </div>
             </template>
           </van-cell>
+
+          <!-- 故障信息 -->
           <van-cell title="故障分类">
             <template #value>
               <div class="cell-value-stack">
@@ -174,47 +185,84 @@
           </van-cell>
           <van-cell title="故障描述">
             <template #value>
-              <div class="desc-text">{{ currentOrder.fault_desc || '—' }}</div>
+              <div class="desc-text" :class="{ 'cv-empty': !currentOrder.fault_desc }">
+                {{ currentOrder.fault_desc || '未填写描述' }}
+              </div>
             </template>
           </van-cell>
-          <van-cell v-if="currentOrder.fault_address" title="故障地址" :value="currentOrder.fault_address" />
-          <van-cell v-if="currentOrder.appointment_date" title="期望时间">
+          <van-cell title="故障地址">
             <template #value>
-              <span class="cv-main">{{ currentOrder.appointment_date }}</span>
-              <span v-if="currentOrder.appointment_period === 'AM'" class="cv-sub">上午</span>
-              <span v-else-if="currentOrder.appointment_period === 'PM'" class="cv-sub">下午</span>
+              <span :class="{ 'cv-empty': !currentOrder.fault_address }">
+                {{ currentOrder.fault_address || '未填写' }}
+              </span>
             </template>
           </van-cell>
+
+          <!-- 期望上门时间 -->
+          <van-cell title="期望上门时间">
+            <template #value>
+              <span :class="{ 'cv-empty': !currentOrder.appointment_date }">
+                {{ currentOrder.appointment_date || '未指定' }}
+              </span>
+            </template>
+          </van-cell>
+
+          <!-- 联系信息 -->
           <van-cell title="联系信息">
             <template #value>
               <div class="cell-value-stack">
-                <span class="cv-main">{{ currentOrder.contact_name }}</span>
-                <a :href="`tel:${currentOrder.contact_phone}`" class="cv-sub">{{ currentOrder.contact_phone }}</a>
+                <span class="cv-main">{{ currentOrder.contact_name || '—' }}</span>
+                <a v-if="currentOrder.contact_phone" :href="`tel:${currentOrder.contact_phone}`" class="cv-sub">
+                  {{ currentOrder.contact_phone }}
+                </a>
+                <span v-else class="cv-sub cv-empty">未填写电话</span>
               </div>
             </template>
           </van-cell>
-          <van-cell v-if="currentOrder.service_point_name" title="服务点" :value="currentOrder.service_point_name" />
-          <van-cell v-if="currentOrder.engineer_name" title="工程师">
+
+          <!-- 服务分配（处理中/已完成才完整显示） -->
+          <van-cell title="服务点">
+            <template #value>
+              <span :class="{ 'cv-empty': !currentOrder.service_point_name }">
+                {{ currentOrder.service_point_name || '未分配' }}
+              </span>
+            </template>
+          </van-cell>
+          <van-cell title="处理工程师">
             <template #value>
               <div class="cell-value-stack">
-                <span class="cv-main">{{ currentOrder.engineer_name }}</span>
-                <a v-if="currentOrder.engineer_phone" :href="`tel:${currentOrder.engineer_phone}`" class="cv-sub">{{ currentOrder.engineer_phone }}</a>
+                <span class="cv-main">{{ currentOrder.engineer_name || '—' }}</span>
+                <a v-if="currentOrder.engineer_phone" :href="`tel:${currentOrder.engineer_phone}`" class="cv-sub">
+                  {{ currentOrder.engineer_phone }}
+                </a>
+                <span v-else class="cv-sub cv-empty">未分配</span>
               </div>
             </template>
           </van-cell>
-          <van-cell v-if="currentOrder.reject_reason" title="拒绝原因">
-            <template #value><span style="color:#ee0a24">{{ currentOrder.reject_reason }}</span></template>
+
+          <!-- 关闭原因（如已关闭/撤销才显示） -->
+          <van-cell v-if="currentOrder.reject_reason || currentOrder.cancel_reason" title="关闭原因">
+            <template #value>
+              <span class="reason-text">{{ currentOrder.reject_reason || currentOrder.cancel_reason }}</span>
+            </template>
           </van-cell>
-          <van-cell v-if="currentOrder.cancel_reason" title="撤销原因">
-            <template #value><span style="color:#ee0a24">{{ currentOrder.cancel_reason }}</span></template>
-          </van-cell>
+
+          <!-- 创建时间（始终显示） -->
           <van-cell title="创建时间" :value="formatDateTime(currentOrder.created_at)" />
         </van-cell-group>
 
-        <!-- 图片 -->
-        <div v-if="currentOrder.images && currentOrder.images.length" class="media-section">
-          <div class="ms-title">现场图片</div>
-          <div class="media-grid">
+        <!-- 现场图片 -->
+        <div class="media-section">
+          <div class="ms-title">
+            现场图片
+            <span v-if="currentOrder.images && currentOrder.images.length" class="ms-count">
+              {{ currentOrder.images.length }} 张
+            </span>
+          </div>
+          <div v-if="!currentOrder.images || currentOrder.images.length === 0" class="media-empty">
+            暂无现场图片
+          </div>
+          <div v-else class="media-grid">
             <div
               v-for="(img, i) in currentOrder.images"
               :key="`img-${i}`"
@@ -226,16 +274,20 @@
           </div>
         </div>
 
-        <!-- 状态流转日志 -->
+        <!-- 处理记录（时间轴） -->
         <div class="log-section">
           <div class="ls-title">处理记录</div>
-          <div v-if="!currentOrder.status_logs || currentOrder.status_logs.length === 0" class="ls-empty">暂无处理记录</div>
+          <div v-if="!currentOrder.status_logs || currentOrder.status_logs.length === 0" class="ls-empty">
+            暂无处理记录
+          </div>
           <div v-else class="ls-list">
             <div v-for="log in currentOrder.status_logs" :key="log.id" class="ls-item">
-              <div class="ls-dot"></div>
+              <div class="ls-dot" :class="logStatusClass(log.to_status)"></div>
               <div class="ls-content">
                 <div class="ls-head">
-                  <span class="ls-status">{{ statusMap[log.to_status] || log.to_status }}</span>
+                  <van-tag :type="logTagType(log.to_status)" size="mini">
+                    {{ statusMap[log.to_status] || log.to_status }}
+                  </van-tag>
                   <span class="ls-time">{{ formatDateTime(log.created_at) }}</span>
                 </div>
                 <div class="ls-operator">{{ log.operator_name || ('操作员#' + log.operator_id) }}</div>
@@ -447,6 +499,25 @@ export default {
     },
     canAct(o) {
       return !['completed', 'closed', 'cancelled'].includes(o.status)
+    },
+    /** 处理记录状态点的颜色类（CSS） */
+    logStatusClass(status) {
+      const map = {
+        pending_accept: 'dot-info',
+        pending_dispatch: 'dot-warning',
+        dispatched: 'dot-primary',
+        assigned_engineer: 'dot-primary',
+        processing: 'dot-cyan',
+        pending_confirm: 'dot-success',
+        completed: 'dot-success',
+        closed: 'dot-muted',
+        cancelled: 'dot-danger',
+      }
+      return map[status] || 'dot-muted'
+    },
+    /** 处理记录徽章颜色 */
+    logTagType(status) {
+      return this.tagType(status)
     },
     previewMedia(url) {
       if (!url) return
@@ -1008,4 +1079,85 @@ h3 {
   margin-bottom: 12px;
 }
 .ml-1 { margin-left: 4px; }
+
+/* ===== 标准化字段展示（占位 + 样式） ===== */
+.cv-empty {
+  color: #c8c9cc;
+  font-style: italic;
+}
+.reason-text {
+  color: #ee0a24;
+  font-weight: 500;
+}
+.fault-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fault-cat {
+  font-size: 11px;
+  color: #1989fa;
+  font-weight: 500;
+}
+.fault-type {
+  font-size: 12px;
+  color: #4b5563;
+}
+.prod-meta {
+  font-size: 11px;
+  color: #9ca3af;
+  font-family: ui-monospace, monospace;
+  margin-top: 2px;
+}
+.appt-hint {
+  color: #1989fa;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+/* ===== 现场图片（带空态） ===== */
+.media-empty {
+  text-align: center;
+  color: #9ca3af;
+  font-size: 13px;
+  padding: 20px 0;
+}
+.ms-count {
+  font-size: 12px;
+  color: #6b7280;
+  margin-left: 6px;
+  font-weight: normal;
+}
+
+/* ===== 处理记录时间轴（彩色状态点） ===== */
+.ls-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #1989fa;
+  margin-top: 6px;
+  flex-shrink: 0;
+  position: relative;
+}
+.ls-dot::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  width: 2px;
+  height: 30px;
+  background: #f0f0f0;
+  transform: translateX(-50%);
+}
+.ls-item:last-child .ls-dot::before { display: none; }
+.ls-dot.dot-info     { background: #ff976a; }
+.ls-dot.dot-warning  { background: #ff976a; }
+.ls-dot.dot-primary  { background: #1989fa; }
+.ls-dot.dot-cyan     { background: #25aeae; }
+.ls-dot.dot-success  { background: #07c160; }
+.ls-dot.dot-muted    { background: #c8c9cc; }
+.ls-dot.dot-danger   { background: #ee0a24; }
 </style>
