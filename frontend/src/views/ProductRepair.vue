@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="product-repair">
     <van-nav-bar title="产品报修" left-arrow @click-left="onBack" fixed :border="false" />
     <div class="repair-spacer" />
@@ -161,32 +161,16 @@
       </van-cell-group>
 
       <van-cell-group inset class="block-group">
-        <van-field
-          label="期望服务时间"
-          :model-value="form.appointment_date"
-          placeholder="点击右侧选择日期（可选）"
-          readonly
-          is-link
-          @click="openDatePicker"
-        >
-          <template #input v-if="false"></template>
-          <template #button v-if="false"></template>
-        </van-field>
-        <van-popup
-          v-model="showDatePicker"
-          position="bottom"
-          round
-          :style="{ height: 'auto' }"
-        >
-          <van-date-picker
-            v-model="pickerDateArr"
-            :min-date="minDate"
-            :max-date="maxDate"
-            title="选择期望上门日期"
-            @confirm="onPickerConfirm"
-            @cancel="showDatePicker = false"
+        <van-cell title="期望服务时间">
+          <input
+            type="date"
+            v-model="form.appointment_date"
+            :min="minDateStr"
+            :max="maxDateStr"
+            class="date-input"
+            placeholder="点击选择日期"
           />
-        </van-popup>
+        </van-cell>
       </van-cell-group>
 
       <van-cell-group inset class="block-group">
@@ -203,7 +187,7 @@
           type="tel"
           placeholder="请输入联系电话"
           required
-          maxlength="11"
+          maxlength="20"
         />
       </van-cell-group>
     </div>
@@ -304,13 +288,6 @@ export default {
 
       form: emptyForm(),
       imageFiles: [],
-      // 期望日期选择器
-      showDatePicker: false,
-      pickerDateArr: [
-        new Date().getFullYear(),
-        String(new Date().getMonth() + 1).padStart(2, '0'),
-        String(new Date().getDate()).padStart(2, '0'),
-      ],
 
       submitting: false,
       minDate: new Date(),
@@ -326,15 +303,25 @@ export default {
       if (this.step === 1) return !!this.selectedProduct
       if (this.step === 2) return !!this.selectedCategory && !!this.form.fault_type.trim()
       if (this.step === 3) {
-        return !!this.form.fault_desc.trim() &&
-               !!this.form.contact_name.trim() &&
-               /^1[3-9]\d{9}$/.test(this.form.contact_phone)
+        // fault_desc 可选（用户在 step 2 已填了 fault_type）
+        // contact_phone 容忍 +86 前缀 / 空格 / 横线
+        let phoneDigits = String(this.form.contact_phone || "").replace(/\D/g, "")
+        if (phoneDigits.length === 13 && phoneDigits.startsWith("86")) phoneDigits = phoneDigits.slice(2)
+        return !!this.form.contact_name.trim() &&
+               /^1[3-9]\d{9}$/.test(phoneDigits)
       }
       return true
     },
     // Step 4 确认页显示的"期望时间"
     appointmentDisplay() {
       return this.form.appointment_date || '尽快上门（未指定日期）'
+    },
+    // HTML5 <input type="date"> 需要 yyyy-mm-dd 字符串
+    minDateStr() {
+      return this._fmtDate(this.minDate)
+    },
+    maxDateStr() {
+      return this._fmtDate(this.maxDate)
     },
   },
   watch: {
@@ -478,33 +465,6 @@ export default {
     },
 
     // ===== 期望服务时间 =====
-    /** 打开日期选择器 */
-    openDatePicker() {
-      // 如果已有值，回填到 picker
-      if (this.form.appointment_date) {
-        const parts = this.form.appointment_date.split('-')
-        this.pickerDateArr = parts
-      } else {
-        this.pickerDateArr = [
-          new Date().getFullYear(),
-          String(new Date().getMonth() + 1).padStart(2, '0'),
-          String(new Date().getDate()).padStart(2, '0'),
-        ]
-      }
-      this.showDatePicker = true
-    },
-    /** van-date-picker confirm 回调 */
-    onPickerConfirm({ selectedValues }) {
-      // selectedValues = ['2026', '07', '28']
-      const yyyy = selectedValues[0]
-      const mm = String(selectedValues[1]).padStart(2, '0')
-      const dd = String(selectedValues[2]).padStart(2, '0')
-      this.form.appointment_date = `${yyyy}-${mm}-${dd}`
-      this.showDatePicker = false
-    },
-    // 仅日期，<input type="date"> v-model 自动同步到 form.appointment_date
-    // 这里不再需要额外方法
-
     // ===== 提交 =====
     async submitOrder() {
       this.submitting = true

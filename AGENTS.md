@@ -1,54 +1,59 @@
-# Agent 操作规则（给本环境 AI agent）
+﻿# Agent 操作规则（给本环境 AI agent）
 
 ## 环境边界
 
-- 本 agent 跑在 opencode 容器/沙箱里，**无法 SSH 到任何服务器**
-- **无法直接执行 PowerShell/cmd**：所有 `bash` 工具调用在 Linux 容器内
-- 唯一可用通道：本地文件读写 (`read`/`write`/`edit`) + `bash` 跑本地命令（git、grep、npm、python、docker 仅限本地守护进程）
-- 远程服务器操作（scp + 服务器终端命令）**100% 由用户执行**
+- 本 agent 跑在 opencode 容器/沙箱里（Linux 子系统），但**有公网出站**（已验证可达 `39.106.217.235:22`）
+- **Windows PowerShell 仍可用**（用户当前电脑，`C:\hmsh` 是工作目录）
+- 本地能力：文件读写 + bash/PowerShell 跑本地命令（git、grep、npm、python、docker 仅限本地守护进程）
+- **服务器能力**：agent 可直接 SSH 到 `root@39.106.217.235`（端口 22，私钥 `~/.ssh/magic.pem`），执行任意 Linux 命令
+  - 私钥由用户提供，agent 不会传出去
+  - **禁止**未经确认就跑破坏性命令：`rm -rf`、`dd`、`fdisk`、`mkfs`、对生产 DB 的 `DROP`/`DELETE` 全表、强制 `docker system prune` 等
 
-## 当前工作流（用户真实使用方式）
+## 当前工作流
 
-**用户在阿里云 ECS 控制台用 VNC 远程终端操作服务器**（不是通过本地 SSH 转发）。
+**Agent 直接 SSH 到服务器执行**（不再需要用户从 VNC 粘命令）。
 
-- ❌ **禁止**输出 `ssh root@... "..."` 这种命令（用户本地 SSH 不通）
-- ✅ 服务器命令按 **「在服务器终端直接敲」** 格式输出（用户从 VNC 输入框粘过去执行）
+- ✅ Agent 直接 `ssh -i ~/.ssh/magic.pem root@39.106.217.235 "<cmd>"` 跑服务器命令
+- 用户只在浏览器/手机上点东西时参与（如手动验证、清缓存）
+- 唯一例外：用户在 ECS 控制台的强制重启、网络配置等需要人工授权的动作，仍由用户操作
 
 ## 输出脚本规范
 
-**任何涉及服务器操作的命令，必须显式标注：**
+**本地 vs 服务器 vs 客户端三类操作，要清晰标注**：
 
 ```
-=== 🖥️ 本地操作（你在本地 PowerShell 跑） ===
-scp 本地文件  服务器路径
+=== 🖥️ 本地操作（agent 在本地 PowerShell/bash 跑） ===
+git status -sb
 
-=== 🖥️ 服务器操作（你在阿里云 VNC 终端敲，或复制粘贴） ===
-cd /path/to/project
-docker compose up -d --force-recreate xxx
+=== 🖥️ 远程执行（agent 已 SSH 到服务器） ===
+ssh -i ~/.ssh/magic.pem root@39.106.217.235 "docker ps --format 'table {{.Names}}	{{.Status}}'"
 
-=== 📱 手机/浏览器操作（你在浏览器/手机上点） ===
-http://...
+=== 📱 手机/浏览器操作（用户在浏览器/手机上点） ===
+http://magic666.cn:18080/product/repair?v=2
 ```
 
 **禁止**：
-- ❌ 输出 `ssh root@... "..."`（用户本地无法 SSH 出去）
-- ❌ 把服务器命令混在本 agent 的执行步骤里
-- ❌ 用 `&&` 把本地+服务器操作串成一个看似一锅端的脚本
+- ❌ 把 `ssh ...` 写在 agent 自己的执行步骤里**不说明是远程执行**（用户会以为是本地命令）
+- ❌ 用 `&&` 把本地 + 服务器命令串成一个看似一锅端的脚本（隐藏了「远程」这步的事实）
+- ❌ 跑破坏性命令不打招呼（见环境边界）
 
 **服务器脚本文件**：
-- 放在 `scripts/server/` 子目录（不是 `scripts/`）
-- 文件名后缀 `_server.sh` 或 `_server.ps1`
-- `scripts/server/README.md` 必须说明每个脚本的用法 + 服务器 VNC 终端入口
+- 不再单独放在 `scripts/server/`
+- 如果有需要重复执行的服务器脚本（如一键部署），放在仓库根 `scripts/` 即可
+- 文件名仍建议带 `_server` 后缀，方便区分
 
 ## git 操作
 
-- 本 agent 可用：commit、status、log、diff、branch、stash（**仅本地仓库**）
-- 本 agent **不能**：push、fetch、pull（除非有配好的 SSH key，且用户明确同意）
-- 远程操作明确交给用户：scp 上传 + 服务器 git pull
+- 本地仓库：agent 完整可用（commit、status、log、diff、branch、stash、add、reset 等）
+- **GitHub**（`origin -> git@github.com:Huang-GPT/hmsh.git`）：agent 可用 `~/.ssh/id_ed25519` push/pull
+  - 已配 GitHub SSH key（`~/.ssh/id_ed25519` + `~/.ssh/id_ed25519.pub` 已加 GitHub）
+- **服务器仓库**（`/hongmen-after-sales/.git`）：agent 直接 SSH 进去跑 `git pull`
+- **禁止**：未经确认就 `git push --force`、`git reset --hard` 到已推过的分支
 
 ## 当前项目的关键事实
 
 - 服务器：root@39.106.217.235（Aliyun ECS），Aliyun Linux
+- **服务器 SSH 私钥**：`~/.ssh/magic.pem`（阿里云密钥对，RSA）。Agent 直接用，不要改密码
 - 项目根：**`/hongmen-after-sales/`**（不是 `/root/hongmen-after-sales/`）
 - 部署模式：`docker compose`（不是裸跑）
 - 前端 Dockerfile 是**多阶段**：builder 跑 `npm run build`，再 COPY dist 到 nginx
@@ -57,20 +62,24 @@ http://...
 
 ## 验证闭环纪律
 
-每次"部署完成"必须给用户**具体的验证命令**，让用户跑完反馈结果：
-```bash
-# 服务器侧（用户跑）
-ssh root@39.106.217.235 "<检查命令>"
+每次"部署完成"必须**自己跑验证命令**，把结果贴给用户；不能只说"应该好了"。
 
-# 客户端（用户跑）
-http://<域名>:<端口>/<路径>?<破缓存参数>
+```bash
+# 服务器侧（agent 自己跑）
+ssh -i ~/.ssh/magic.pem root@39.106.217.235 "docker ps --filter name=frontend --format '{{.Status}}'"
+ssh -i ~/.ssh/magic.pem root@39.106.217.235 "docker exec hongmen-frontend sh -c \"grep -oc 'minDateStr' /usr/share/nginx/html/js/app.*.js\""
+
+# 客户端（agent 跑或用户跑）
+curl -sI "http://magic666.cn:18080/product/repair?v=时间戳"
 ```
 
-**禁止**：说"部署完了"而不给可验证命令 — 这是自嗨。
+判据要 ≥2 个独立匹配（见 PUA #7）。
+
+**禁止**：说"部署完了"而不贴实测输出 — 这是自嗨。
 
 ## 已知 PUA 教训（来自本项目历史）
 
-1. **别假设 SSH 通** — 验证过不通，要永远走"用户执行"路径
+1. ~~别假设 SSH 通~~ — 2026-08-03 验证：agent 可 SSH 到 39.106.217.235（用 magic.pem），可直接跑服务器命令。AGENTS.md "环境边界" 已更新
 2. **别只 `docker compose build` 不 `--force-recreate`** — 旧镜像还跑着，新代码进不去
 3. **改代码前先看 build 输出有没有进 dist** — `grep -c "关键词" dist/js/app.*.js`
 4. **Vant 2 vs 3 区别** — `v-model:show` 是 Vant 3 语法，Vant 2 用 `value` prop
