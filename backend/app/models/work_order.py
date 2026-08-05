@@ -78,6 +78,7 @@ class WorkOrder(db.Model):
             'product_qr_code': self.product.qr_code if self.product else None,
             'product_sales_no': self.product.sales_no if self.product else None,
             'product_customer_name': self.product.customer_name if self.product else None,
+            'product_dealer_name': self.product.dealer_name if self.product else None,
             'fault_category_id': self.fault_category_id,
             'fault_category_name': self.fault_category.name if self.fault_category else None,
             'fault_type': self.fault_type,

@@ -50,6 +50,8 @@
             <th>工单号</th>
             <th>用户</th>
             <th>产品</th>
+            <th>客户名称</th>
+            <th>经销商</th>
             <th>故障分类</th>
             <th>状态</th>
             <th>创建时间</th>
@@ -58,10 +60,10 @@
         </thead>
         <tbody>
           <tr v-if="loading && orders.length === 0">
-            <td colspan="7" class="state-cell">加载中…</td>
+            <td colspan="9" class="state-cell">加载中…</td>
           </tr>
           <tr v-else-if="orders.length === 0">
-            <td colspan="7" class="state-cell">
+            <td colspan="9" class="state-cell">
               <div class="empty-cell">
                 <div class="empty-icon">📋</div>
                 <div class="empty-text">暂无工单</div>
@@ -89,6 +91,16 @@
                 <span class="prod-name">{{ o.product_name || o.product_model || '—' }}</span>
                 <span class="prod-meta">二维码 {{ o.product_qr_code || '—' }}</span>
               </div>
+            </td>
+            <td>
+              <span class="customer-cell" :class="{ 'cell-empty': !o.product_customer_name }">
+                {{ o.product_customer_name || '—' }}
+              </span>
+            </td>
+            <td>
+              <span class="dealer-cell" :class="{ 'cell-empty': !o.product_dealer_name }">
+                {{ o.product_dealer_name || '—' }}
+              </span>
             </td>
             <td>
               <div class="fault-cell">
@@ -826,6 +838,19 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.customer-cell,
+.dealer-cell {
+  display: inline-block;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.cell-empty {
+  color: #c8c9cc;
+  font-style: italic;
 }
 .user-name,
 .prod-name {
