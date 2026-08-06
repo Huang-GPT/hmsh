@@ -1,4 +1,5 @@
 from flask import request, jsonify, g
+from sqlalchemy.orm import joinedload
 from app.api import bp
 from app.services.auth_service import login_required, role_required, hash_password
 from app.models.user import User
@@ -553,6 +554,7 @@ def get_all_orders():
 
     total = query.count()
     orders = (query.order_by(WorkOrder.created_at.desc())
+              .options(joinedload(WorkOrder.product))
               .offset((page - 1) * page_size).limit(page_size).all())
 
     # KPI 统计
@@ -572,7 +574,7 @@ def get_all_orders():
 @bp.route('/admin/orders/<int:order_id>', methods=['GET'])
 @login_required
 def get_order_detail(order_id):
-    order = WorkOrder.query.get_or_404(order_id)
+    order = WorkOrder.query.options(joinedload(WorkOrder.product)).get_or_404(order_id)
     logs = order.status_logs.all()
     return jsonify({
         'order': order.to_dict(),
