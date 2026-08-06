@@ -76,8 +76,8 @@
             @click="showDetail(o)"
             :class="{ 'row-pending': isPending(o.status) }"
           >
-            <td class="col-orderno">
-              <code>{{ o.order_no }}</code>
+            <td class="col-orderno" @click.stop="showDetail(o)">
+              <a @click.stop="showDetail(o)"><code>{{ o.order_no }}</code></a>
               <div class="row-meta">{{ formatDateTime(o.created_at) }}</div>
             </td>
             <td>
@@ -178,6 +178,8 @@
                 <span class="cv-sub">二维码：{{ currentOrder.product_qr_code || '—' }}</span>
                 <span class="cv-sub">序列号：{{ currentOrder.product_serial || '—' }}</span>
                 <span class="cv-sub">销售单：{{ currentOrder.product_sales_no || '—' }}</span>
+                <span v-if="currentOrder.product_family" class="cv-sub">系列：{{ currentOrder.product_family }}</span>
+                <span v-if="currentOrder.product_customer_name" class="cv-sub">客户名：{{ currentOrder.product_customer_name }}</span>
               </div>
             </template>
           </van-cell>
@@ -203,6 +205,25 @@
             </template>
           </van-cell>
           <van-cell title="故障地址">
+            <template #value>
+              <span :class="{ 'cv-empty': !currentOrder.fault_address }">
+                {{ currentOrder.fault_address || '未填写' }}
+              </span>
+            </template>
+          </van-cell>
+
+          <van-cell v-if="currentOrder.fault_location_lat || currentOrder.fault_location_lng" title="故障定位">
+            <template #value>
+              <span class="cv-main ls-coord">
+                <span v-if="currentOrder.fault_location_lat">{{ currentOrder.fault_location_lat }}</span>
+                <span v-if="currentOrder.fault_location_lat && currentOrder.fault_location_lng">, </span>
+                <span v-if="currentOrder.fault_location_lng">{{ currentOrder.fault_location_lng }}</span>
+                <a v-if="currentOrder.fault_location_lat && currentOrder.fault_location_lng"
+                   :href="`https://uri.amap.com/marker?positionLng=${currentOrder.fault_location_lng}&positionLat=${currentOrder.fault_location_lat}&src=hmsh`"
+                   target="_blank" rel="noopener" class="cv-sub" style="margin-left:6px">地图</a>
+              </span>
+            </template>
+          </van-cell>
             <template #value>
               <span :class="{ 'cv-empty': !currentOrder.fault_address }">
                 {{ currentOrder.fault_address || '未填写' }}
@@ -261,6 +282,7 @@
 
           <!-- 创建时间（始终显示） -->
           <van-cell title="创建时间" :value="formatDateTime(currentOrder.created_at)" />
+          <van-cell v-if="currentOrder.updated_at" title="更新时间" :value="formatDateTime(currentOrder.updated_at)" />
         </van-cell-group>
 
         <!-- 现场图片 -->
@@ -286,6 +308,15 @@
           </div>
         </div>
 
+        <!-- 视频 -->
+        <div v-if="currentOrder.videos && currentOrder.videos.length" class="media-section">
+          <div class="ms-title">现场视频</div>
+          <a v-for="(v, i) in currentOrder.videos" :key="`vid-${i}`" :href="v" target="_blank" rel="noopener" class="media-video">
+            <span class="mv-icon">▶</span>
+            <span>视频{{ i + 1 }}</span>
+          </a>
+        </div>
+
         <!-- 处理记录（时间轴） -->
         <div class="log-section">
           <div class="ls-title">处理记录</div>
@@ -304,6 +335,9 @@
                 </div>
                 <div class="ls-operator">{{ log.operator_name || ('操作员#' + log.operator_id) }}</div>
                 <div v-if="log.remark" class="ls-remark">{{ log.remark }}</div>
+                <div v-if="log.images && log.images.length" class="ls-images">
+                  <img v-for="(lg, gi) in log.images" :key="`lgi-${log.id}-${gi}`" :src="lg" alt="现场图" @click="previewMedia(lg)" />
+                </div>
               </div>
             </div>
           </div>
@@ -822,7 +856,14 @@ h3 {
   border-radius: 3px;
   font-family: ui-monospace, monospace;
   font-size: 12px;
-  color: #1f2937;
+  color: #1989fa;
+  text-decoration: underline;
+  text-decoration-color: rgba(25,137,250,0.35);
+  text-underline-offset: 2px;
+}
+.col-orderno a {
+  color: inherit;
+  text-decoration: none;
 }
 .col-time {
   font-family: ui-monospace, monospace;
@@ -998,6 +1039,48 @@ h3 {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.media-video {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #f9fafb;
+  border-radius: 6px;
+  color: #1989fa;
+  text-decoration: none;
+  margin-bottom: 8px;
+  word-break: break-all;
+  font-size: 13px;
+}
+.media-video .mv-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #1989fa;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.ls-images {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-top: 6px;
+}
+.ls-images img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.ls-coord a {
+  color: #1989fa;
+  text-decoration: underline;
 }
 
 /* ===== Log ===== */
