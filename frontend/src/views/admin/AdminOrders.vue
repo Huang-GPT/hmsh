@@ -73,11 +73,11 @@
           <tr
             v-for="o in orders"
             :key="o.id"
-            @click="showDetail(o)"
+            @click="openDetail(o)"
             :class="{ 'row-pending': isPending(o.status) }"
           >
-            <td class="col-orderno" @click.stop="showDetail(o)">
-              <a @click.stop="showDetail(o)"><code>{{ o.order_no }}</code></a>
+            <td class="col-orderno" @click.stop="openDetail(o)">
+              <a @click.stop="openDetail(o)"><code>{{ o.order_no }}</code></a>
               <div class="row-meta">{{ formatDateTime(o.created_at) }}</div>
             </td>
             <td>
@@ -122,7 +122,7 @@
               </div>
             </td>
             <td class="col-actions" @click.stop>
-              <a class="op-link primary" @click="showDetail(o)">详情</a>
+              <a class="op-link primary" @click="openDetail(o)">详情</a>
             </td>
           </tr>
         </tbody>
@@ -620,7 +620,7 @@ export default {
       } catch (e) { console.error(e) }
     },
 
-    async showDetail(order) {
+    async openDetail(order) {
       this.currentOrder = order
       this.showDetail = true
       // 拉详情以获取 status_logs / 图片完整 URL 等
