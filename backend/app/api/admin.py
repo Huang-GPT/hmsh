@@ -574,7 +574,13 @@ def get_all_orders():
 @bp.route('/admin/orders/<int:order_id>', methods=['GET'])
 @login_required
 def get_order_detail(order_id):
-    order = WorkOrder.query.options(joinedload(WorkOrder.product)).get_or_404(order_id)
+    order = WorkOrder.query.options(
+        joinedload(WorkOrder.user),
+        joinedload(WorkOrder.product),
+        joinedload(WorkOrder.fault_category),
+        joinedload(WorkOrder.service_point),
+        joinedload(WorkOrder.engineer),
+    ).get_or_404(order_id)
     logs = order.status_logs.all()
     return jsonify({
         'order': order.to_dict(),
