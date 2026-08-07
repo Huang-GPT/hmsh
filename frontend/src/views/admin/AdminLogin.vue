@@ -51,7 +51,8 @@ export default {
         const res = await adminLogin(this.account, this.password)
         const user = res.data.user
         localStorage.setItem('admin_user', JSON.stringify(user))
-        this.$router.push('/admin/dashboard')
+        const user = res.data.user
+        if user.role == 'service_point' { this.$router.push('/dealer/orders') } else { this.$router.push('/admin/dashboard') }
       } catch (e) {
         const msg = (e && e.response && e.response.data && e.response.data.error) || '登录失败'
         this.$toast(msg)
