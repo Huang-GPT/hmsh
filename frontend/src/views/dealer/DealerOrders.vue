@@ -46,7 +46,7 @@ export default {
     async submitAssign() {
       if (!this.engineerForm.name || !this.engineerForm.phone) { this.$toast('请填写完整信息'); return }
       try { await assignEngineerByText(this.currentOrder.id, this.engineerForm.name, this.engineerForm.phone); this.$toast.success('分配成功'); this.showAssignDialog = false; this.loadOrders() }
-      catch (e) { this.$toast(e.response?.data?.error || '操作失败') }
+      catch (e) { const err = (e && e.response && e.response.data && e.response.data.error) || '操作失败'; this.$toast(err) }
     },
     async confirmComplete() {
       try { await confirmCompletedApi(this.currentOrder.id, '经销商确认完成'); this.$toast.success('已确认完成'); this.showDetailDialog = false; this.loadOrders() }
