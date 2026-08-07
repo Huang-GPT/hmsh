@@ -1,4 +1,4 @@
-from datetime import datetime
+﻿from datetime import datetime
 from app import db
 
 class WorkOrder(db.Model):
@@ -29,6 +29,8 @@ class WorkOrder(db.Model):
     engineer_id = db.Column(db.Integer, db.ForeignKey('engineers.id'))
     reject_reason = db.Column(db.String(255))
     cancel_reason = db.Column(db.String(255))
+    assigned_engineer_name = db.Column(db.String(50), comment='经销商指定的工程师姓名')
+    assigned_engineer_phone = db.Column(db.String(20), comment='经销商指定的工程师电话')
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -98,6 +100,8 @@ class WorkOrder(db.Model):
             'engineer_phone': self.engineer.phone if self.engineer else None,
             'reject_reason': self.reject_reason,
             'cancel_reason': self.cancel_reason,
+            'assigned_engineer_name': self.assigned_engineer_name,
+            'assigned_engineer_phone': self.assigned_engineer_phone,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

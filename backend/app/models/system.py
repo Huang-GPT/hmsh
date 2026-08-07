@@ -29,6 +29,23 @@ class SystemConfig(db.Model):
         return config
 
 
+class RolePermission(db.Model):
+    __tablename__ = 'role_permissions'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    role = db.Column(db.Enum('admin','dispatcher','service_point','engineer','operator','customer'), unique=True, nullable=False)
+    permissions = db.Column(db.JSON, nullable=False, comment='菜单权限列表')
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'role': self.role,
+            'permissions': self.permissions,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class TokenBlacklist(db.Model):
     __tablename__ = 'token_blacklist'
 

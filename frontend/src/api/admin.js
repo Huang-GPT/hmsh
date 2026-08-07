@@ -160,3 +160,23 @@ export function assignEngineer(orderId, engineerId, remark) {
 export function confirmCompletedApi(orderId, remark) {
   return api.post(`/admin/orders/${orderId}/confirm`, { remark: remark || '' })
 }
+
+
+export function getServicePointOrders() {
+  return api.get('/admin/orders/service-point')
+}
+
+export function assignEngineerByText(orderId, engineerName, engineerPhone) {
+  return api.post(\/admin/orders/\/assign-engineer-text\, {
+    engineer_name: engineerName,
+    engineer_phone: engineerPhone
+  })
+}
+
+export function updateRolePermissions(role, permissions) {
+  return api.put(\/admin/role-permissions/\, { permissions })
+}
+
+export function updateUserPermissions(userId, permissions) {
+  return api.put(\/admin/users/\/permissions\, { permissions })
+}

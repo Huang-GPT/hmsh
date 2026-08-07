@@ -7,7 +7,7 @@ from app.models.service_point import ServicePoint, Engineer
 from app.models.work_order import WorkOrder
 from app.models.common_fault import FaultCategory, CommonFault
 from app.models.product import Product
-from app.models.system import SystemConfig
+from app.models.system import SystemConfig, RolePermission
 from app import db
 import csv
 import io
@@ -382,6 +382,33 @@ def complete_order(order_id):
     return jsonify({'message': '已完成，等待客户确认', 'order': order.to_dict()})
 
 
+
+# ========== 经销商文本分配工程师 ==========
+@bp.route('/admin/orders/<int:order_id>/assign-engineer-text', methods=['POST'])
+@login_required
+@role_required('service_point')
+def assign_engineer_text(order_id):
+    order = WorkOrder.query.get_or_404(order_id)
+    if order.status != 'dispatched':
+        return jsonify({'error': '当前状态不能分配工程师'}), 400
+    user = User.query.get(g.current_user_id)
+    if not user.service_point_id or order.service_point_id != user.service_point_id:
+        return jsonify({'error': '无权操作该工单'}), 403
+    data = request.get_json() or {}
+    engineer_name = (data.get('engineer_name') or '').strip()
+    engineer_phone = (data.get('engineer_phone') or '').strip()
+    if not engineer_name or not engineer_phone:
+        return jsonify({'error': '请填写工程师姓名和电话'}), 400
+    order.assigned_engineer_name = engineer_name
+    order.assigned_engineer_phone = engineer_phone
+    order.status = 'assigned_engineer'
+    from app.models.work_order import OrderStatusLog
+    log = OrderStatusLog(order_id=order.id, from_status='dispatched', to_status='assigned_engineer',
+                         operator_id=g.current_user_id, operator_name=g.current_user_nickname,
+                         remark='指定工程师: ' + engineer_name + ' ' + engineer_phone)
+    db.session.add(log)
+    db.session.commit()
+    return jsonify({'message': '分配成功', 'order': order.to_dict()})
 @bp.route('/admin/orders/<int:order_id>/confirm', methods=['POST'])
 @login_required
 @role_required('admin','dispatcher','operator')
@@ -988,3 +1015,34 @@ def admin_unbind(binding_id):
         'message': '解绑成功',
         'unbound': {'user_id': user_id, 'product_id': product_id, 'binding_id': binding_id},
     })
+
+# ========== 角色权限管理 ==========
+@bp.route('/admin/role-permissions', methods=['GET'])
+@login_required
+@role_required('admin')
+def get_role_permissions():
+    roles = RolePermission.query.all()
+    return jsonify({'items': [r.to_dict() for r in roles]})
+
+@bp.route('/admin/role-permissions/<string:role>', methods=['PUT'])
+@login_required
+@role_required('admin')
+def update_role_permissions(role):
+    valid_roles = ['admin','dispatcher','service_point','engineer','operator','customer']
+    if role not in valid_roles: return jsonify({'error': '无效角色'}), 400
+    data = request.get_json(); permissions = data.get('permissions', [])
+    rp = RolePermission.query.filter_by(role=role).first()
+    if rp: rp.permissions = permissions
+    else:
+        rp = RolePermission(role=role, permissions=permissions); db.session.add(rp)
+    db.session.commit()
+    return jsonify({'message': '权限已更新', 'role': role, 'permissions': permissions})
+
+@bp.route('/admin/users/<int:user_id>/permissions', methods=['PUT'])
+@login_required
+@role_required('admin')
+def update_user_permissions(user_id):
+    user = User.query.get_or_404(user_id)
+    user.permissions = request.get_json().get('permissions', [])
+    db.session.commit()
+    return jsonify({'message': '权限已更新', 'user_id': user_id, 'permissions': user.permissions})

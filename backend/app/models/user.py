@@ -1,4 +1,4 @@
-from datetime import datetime
+﻿from datetime import datetime
 from app import db
 
 class User(db.Model):
@@ -13,6 +13,7 @@ class User(db.Model):
     role = db.Column(db.Enum('customer','dispatcher','service_point','engineer','operator','admin'), default='customer', nullable=False)
     status = db.Column(db.Enum('active','disabled'), default='active', nullable=False)
     service_point_id = db.Column(db.Integer, db.ForeignKey('service_points.id'))
+    permissions = db.Column(db.JSON, comment='菜单权限列表')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -29,5 +30,6 @@ class User(db.Model):
             'status': self.status,
             'service_point_id': self.service_point_id,
             'service_point_name': self.service_point.name if self.service_point else None,
+            'permissions': self.permissions,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
