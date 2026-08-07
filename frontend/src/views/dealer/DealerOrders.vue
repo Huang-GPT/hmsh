@@ -1,18 +1,18 @@
 <template>
   <div class='dealer-orders'>
-    <van-nav-bar title='经销商工单' left-arrow @click-left='$router.push('/admin/dashboard')' fixed />
+    <van-nav-bar title='经销商工单' left-arrow @click-left="$router.push('/admin/dashboard')" fixed />
     <van-tabs v-model='activeTab' @change='loadOrders' sticky>
-      <van-tab title='待分配' name='dispatched' />>
-      <van-tab title='处理中' name='processing' />>
-      <van-tab title='已完成' name='completed' />>
+      <van-tab title='待分配' name='dispatched' />
+      <van-tab title='处理中' name='processing' />
+      <van-tab title='已完成' name='completed' />
     </van-tabs>
     <van-list v-model='loading' :finished='finished' finished-text='没有更多了' @load='loadOrders'>
-      <van-cell v-for='o in orders' :key='o.id' :title='o.order_no' :label='o.product_name||o.product_model || ''' @click='showDetail(o)'>
+      <van-cell v-for='o in orders' :key='o.id' :title='o.order_no' :label="(o.product_name || o.product_model || '')" @click='showDetail(o)'>
         <template #icon><van-tag :type='tagType(o.status)' size='small'>{{statusMap[o.status]}}</van-tag></template>
         <template #right-icon><span v-if='o.assigned_engineer_name' class='eng-name'>{{o.assigned_engineer_name}}</span></template>
       </van-cell>
     </van-list>
-    <van-empty v-if='!loading&&orders.length === 0' description='暂无工单' />>
+    <van-empty v-if='!loading && orders.length === 0' description='暂无工单' />
   </div>
 </template>
 <script>
@@ -53,7 +53,7 @@ export default {
       catch (e) { this.$toast('操作失败') }
     }
   }
-}}
+}
 </script>
 <style scoped>
 .dealer-orders { background: #f5f5f5; min-height: 100vh; padding-bottom: 20px; }
