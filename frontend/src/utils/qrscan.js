@@ -1,7 +1,7 @@
 import { BrowserMultiFormatReader } from '@zxing/browser'
 
-import BarcodeFormat from '@zxing/library/esm/core/BarcodeFormat'
-import DecodeHintType from '@zxing/library/esm/core/DecodeHintType'
+import * as zxing from '@zxing/library'
+const { BarcodeFormat, DecodeHintType } = zxing
 
 let _zxingReader = null
 function getZxing() {
