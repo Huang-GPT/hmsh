@@ -645,6 +645,8 @@ export default {
         this.showDispatch = false
         this.showDetail = false
         this.loadOrders()
+        // 派发成功后跳转到'工单售后'页面查看刚派的工单
+        this.$router.push('/admin/dealer-orders')
       } catch (e) {
         this.$toast((e && e.response && e.response.data && e.response.data.error) || '操作失败')
         return false

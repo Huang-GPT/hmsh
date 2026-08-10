@@ -1095,3 +1095,32 @@ def dealer_accept_order(order_id):
         'message': '接单成功，工单已进入处理中',
         'order': order.to_dict()
     })
+
+
+@bp.route('/admin/dealer-orders', methods=['GET'])
+@login_required
+@role_required('admin', 'dispatcher')
+def admin_dealer_orders():
+    """总部视角：查看所有经销商（service_point）的工单售后
+
+    可选 query: service_point_id / status
+    返回每个工单关联的 service_point_name + assigned_engineer 信息
+    """
+    sp_id = request.args.get('service_point_id', type=int)
+    status = request.args.get('status')
+
+    query = WorkOrder.query.options(
+        joinedload(WorkOrder.service_point),
+    ).filter(WorkOrder.service_point_id.isnot(None))
+
+    if sp_id:
+        query = query.filter(WorkOrder.service_point_id == sp_id)
+    if status:
+        statuses = [s.strip() for s in status.split(',') if s.strip()]
+        if len(statuses) == 1:
+            query = query.filter(WorkOrder.status == statuses[0])
+        elif len(statuses) > 1:
+            query = query.filter(WorkOrder.status.in_(statuses))
+
+    orders = query.order_by(WorkOrder.created_at.desc()).limit(500).all()
+    return jsonify({'orders': [o.to_dict() for o in orders]})

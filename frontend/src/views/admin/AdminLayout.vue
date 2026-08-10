@@ -41,6 +41,7 @@ export default {
       menuItems: [
         { title: '工作台', icon: 'wap-home-o', path: '/admin/dashboard' },
         { title: '工单管理', icon: 'orders-o', path: '/admin/orders' },
+        { title: '工单售后', icon: 'after-sale-o', path: '/admin/dealer-orders' },
         { title: '用户管理', icon: 'friends-o', path: '/admin/users' },
         { title: '产品管理', icon: 'goods-o', path: '/admin/products' },
         { title: '绑定记录', icon: 'cluster-o', path: '/admin/bindings' },

@@ -189,3 +189,9 @@ export function acceptOrderByText(orderId, engineerName, engineerPhone) {
     engineer_phone: engineerPhone,
   })
 }
+
+
+export function getAllDealerOrders(params) {
+  // 总部视角：查看所有经销商的工单售后
+  return api.get('/admin/dealer-orders', { params })
+}

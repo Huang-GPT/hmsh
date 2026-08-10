@@ -35,7 +35,8 @@ const routes = [
     { path: 'users', name: 'AdminUsers', component: AdminUsers },
     { path: 'products', name: 'AdminProducts', component: AdminProducts },
     { path: 'bindings', name: 'AdminBindings', component: AdminBindings },
-    { path: 'faults', name: 'AdminFaults', component: AdminFaults }
+    { path: 'faults', name: 'AdminFaults', component: AdminFaults },
+    { path: 'dealer-orders', name: 'AdminDealerOrders', component: () => import('@/views/admin/AdminDealerOrders.vue') }
   ]},
   { path: '/dealer', component: AdminLayout, children: [
     { path: '', redirect: '/dealer/orders' },
