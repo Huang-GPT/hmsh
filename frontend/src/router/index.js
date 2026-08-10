@@ -42,3 +42,11 @@ const routes = [
     { path: 'orders', name: 'DealerOrders', component: DealerOrders }
   ]}
 ]
+
+const router = new VueRouter({
+  mode: 'history',
+  base: process.env.BASE_URL,
+  routes
+})
+
+export default router
