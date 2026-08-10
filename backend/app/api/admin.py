@@ -1046,3 +1046,52 @@ def update_user_permissions(user_id):
     user.permissions = request.get_json().get('permissions', [])
     db.session.commit()
     return jsonify({'message': '权限已更新', 'user_id': user_id, 'permissions': user.permissions})
+@bp.route('/dealer/orders/<int:order_id>/accept', methods=['POST'])
+@login_required
+@role_required('service_point', 'admin', 'dispatcher')
+def dealer_accept_order(order_id):
+    """经销商接单（dispatched → processing 一步完成）
+
+    流程：总部 dispatch 把工单派给某个 service_point 后，
+    经销商用户登录进入"工单服务"，点击接单按钮，
+    填写工程师姓名 + 电话，一次提交后工单状态直接进入 processing。
+    """
+    order = WorkOrder.query.get_or_404(order_id)
+    if order.status != 'dispatched':
+        return jsonify({'error': f'当前状态({order.status})不能接单'}), 400
+
+    user = User.query.get(g.current_user_id)
+    if user.role == 'service_point':
+        if not user.service_point_id or order.service_point_id != user.service_point_id:
+            return jsonify({'error': '无权操作该工单'}), 403
+    elif user.role not in ('admin', 'dispatcher'):
+        return jsonify({'error': '无接单权限'}), 403
+
+    data = request.get_json() or {}
+    engineer_name = (data.get('engineer_name') or '').strip()
+    engineer_phone = (data.get('engineer_phone') or '').strip()
+    if not engineer_name:
+        return jsonify({'error': '请填写工程师姓名'}), 400
+    if not engineer_phone or not engineer_phone.isdigit() or len(engineer_phone) < 7:
+        return jsonify({'error': '请填写正确的工程师电话（至少 7 位数字）'}), 400
+
+    from app.models.work_order import OrderStatusLog
+    order.assigned_engineer_name = engineer_name
+    order.assigned_engineer_phone = engineer_phone
+    order.status = 'processing'
+
+    log = OrderStatusLog(
+        order_id=order.id,
+        from_status='dispatched',
+        to_status='processing',
+        operator_id=g.current_user_id,
+        operator_name=g.current_user_nickname,
+        remark='经销商接单，工程师: ' + engineer_name + ' ' + engineer_phone
+    )
+    db.session.add(log)
+    db.session.commit()
+
+    return jsonify({
+        'message': '接单成功，工单已进入处理中',
+        'order': order.to_dict()
+    })

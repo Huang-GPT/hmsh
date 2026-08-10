@@ -180,3 +180,20 @@ export function updateRolePermissions(role, permissions) {
 export function updateUserPermissions(userId, permissions) {
   return api.put('/admin/users/permissions', { permissions })
 }
+
+export function acceptOrderByText(orderId, engineerName, engineerPhone) {
+  // 经销商接单（一步完成：填工程师 + dispatched → processing）
+  return api.post(`/dealer/orders/${orderId}/accept`, {
+    engineer_name: engineerName,
+    engineer_phone: engineerPhone,
+  })
+}
+
+
+export function acceptOrderByText(orderId, engineerName, engineerPhone) {
+  // 经销商接单：一步完成（填工程师 + dispatched → processing）
+  return api.post(`/dealer/orders/${orderId}/accept`, {
+    engineer_name: engineerName,
+    engineer_phone: engineerPhone,
+  })
+}
