@@ -1310,7 +1310,7 @@ def set_user_roles(user_id):
     role_ids = data.get('role_ids', [])
 
     # 删除旧绑定
-    UserRbacRole.query.filter_by(user_id=user_id).delete()
+    RbacUserRole.query.filter_by(user_id=user_id).delete()
     # 加新绑定
     for rid in role_ids:
         if RbacRole.query.get(rid):
