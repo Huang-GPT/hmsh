@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 from flask import request, jsonify, current_app, g
 from app.models.user import User
-from app.models.system import TokenBlacklist, LegacyRolePermission
+from app.models.system import TokenBlacklist, LegacyLegacyRolePermission
 
 def hash_password(password):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(current_app.config['BCRYPT_LOG_ROUNDS'])).decode('utf-8')
@@ -13,7 +13,7 @@ def check_password(password, password_hash):
     return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
 
 def get_role_permissions(role):
-    rp = RolePermission.query.filter_by(role=role).first()
+    rp = LegacyRolePermission.query.filter_by(role=role).first()
     if rp:
         return rp.permissions
     return []
