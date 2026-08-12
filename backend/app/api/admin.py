@@ -7,7 +7,7 @@ from app.models.service_point import ServicePoint, Engineer
 from app.models.work_order import WorkOrder
 from app.models.common_fault import FaultCategory, CommonFault
 from app.models.product import Product
-from app.models.system import SystemConfig, RolePermission
+from app.models.system import SystemConfig, LegacyRolePermission
 from app.models.rbac import Permission as RbacPermission, Role as RbacRole, RolePermission as RbacRolePermission, UserRole as RbacUserRole
 from app import db
 import csv

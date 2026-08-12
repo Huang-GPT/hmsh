@@ -29,8 +29,8 @@ class SystemConfig(db.Model):
         return config
 
 
-class RolePermission(db.Model):
-    __tablename__ = 'role_permissions'
+class LegacyRolePermission(db.Model):
+    __tablename__ = 'legacy_role_permissions'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     role = db.Column(db.Enum('admin','dispatcher','service_point','engineer','operator','customer'), unique=True, nullable=False)
