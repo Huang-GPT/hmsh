@@ -1050,7 +1050,7 @@ def admin_unbind(binding_id):
 @login_required
 @role_required('admin')
 def get_role_permissions():
-    roles = RolePermission.query.all()
+    roles = LegacyRolePermission.query.all()
     return jsonify({'items': [r.to_dict() for r in roles]})
 
 @bp.route('/admin/role-permissions/<string:role>', methods=['PUT'])
@@ -1060,10 +1060,10 @@ def update_role_permissions(role):
     valid_roles = ['admin','dispatcher','service_point','engineer','operator','customer']
     if role not in valid_roles: return jsonify({'error': '无效角色'}), 400
     data = request.get_json(); permissions = data.get('permissions', [])
-    rp = RolePermission.query.filter_by(role=role).first()
+    rp = LegacyRolePermission.query.filter_by(role=role).first()
     if rp: rp.permissions = permissions
     else:
-        rp = RolePermission(role=role, permissions=permissions); db.session.add(rp)
+        rp = LegacyRolePermission(role=role, permissions=permissions); db.session.add(rp)
     db.session.commit()
     return jsonify({'message': '权限已更新', 'role': role, 'permissions': permissions})
 
@@ -1161,7 +1161,7 @@ def admin_dealer_orders():
 @role_required('admin')
 def list_permissions():
     """列出所有权限（按 module 分组排序）"""
-    perms = RbacPermission.query.order_by(Permission.sort_order, Permission.id).all()
+    perms = RbacPermission.query.order_by(RbacPermission.sort_order, RbacPermission.id).all()
     # 按模块分组
     grouped = {}
     for p in perms:
@@ -1197,7 +1197,7 @@ MODULE_LABELS = {
 @role_required('admin')
 def list_roles():
     """列出所有角色（含 permission_ids）"""
-    roles = RbacRole.query.order_by(Role.sort_order, Role.id).all()
+    roles = RbacRole.query.order_by(RbacRole.sort_order, RbacRole.id).all()
     return jsonify({'items': [r.to_dict(include_permissions=False) for r in roles]})
 
 
