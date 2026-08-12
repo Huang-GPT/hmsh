@@ -58,6 +58,12 @@ export function updateUser(userId, data) {
   return api.put(`/admin/users/${userId}`, data)
 }
 
+// === 用户启停 ===
+export function toggleUserStatus(userId) {
+  return api.put(`/admin/users/${userId}/status`)
+}
+
+
 // === RBAC：权限 + 角色 ===
 export function listPermissions() {
   return api.get('/admin/permissions')
