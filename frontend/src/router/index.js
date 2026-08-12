@@ -11,6 +11,7 @@ import AdminLayout from '@/views/admin/AdminLayout.vue'
 import AdminLogin from '@/views/admin/AdminLogin.vue'
 import AdminDashboard from '@/views/admin/AdminDashboard.vue'
 import AdminOrders from '@/views/admin/AdminOrders.vue'
+import AdminRoles from '@/views/admin/AdminRoles.vue'
 import AdminUsers from '@/views/admin/AdminUsers.vue'
 import AdminProducts from '@/views/admin/AdminProducts.vue'
 import AdminBindings from '@/views/admin/AdminBindings.vue'
@@ -37,6 +38,7 @@ const routes = [
     { path: 'bindings', name: 'AdminBindings', component: AdminBindings },
     { path: 'faults', name: 'AdminFaults', component: AdminFaults },
     { path: 'dealer-orders', name: 'AdminDealerOrders', component: () => import('@/views/admin/AdminDealerOrders.vue') }
+    { path: 'roles', name: 'AdminRoles', component: AdminRoles }
   ]},
   { path: '/dealer', component: AdminLayout, children: [
     { path: '', redirect: '/dealer/orders' },

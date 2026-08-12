@@ -53,6 +53,46 @@ export function updateUserRole(userId, role) {
   return api.put(`/admin/users/${userId}/role`, { role })
 }
 
+// === 用户管理增强 ===
+export function updateUser(userId, data) {
+  return api.put(`/admin/users/${userId}`, data)
+}
+
+// === RBAC：权限 + 角色 ===
+export function listPermissions() {
+  return api.get('/admin/permissions')
+}
+
+export function listRoles() {
+  return api.get('/admin/roles')
+}
+
+export function getRole(roleId) {
+  return api.get(`/admin/roles/${roleId}`)
+}
+
+export function createRole(data) {
+  return api.post('/admin/roles', data)
+}
+
+export function updateRole(roleId, data) {
+  return api.put(`/admin/roles/${roleId}`, data)
+}
+
+export function deleteRole(roleId) {
+  return api.delete(`/admin/roles/${roleId}`)
+}
+
+// === 用户-角色分配 ===
+export function getUserRoles(userId) {
+  return api.get(`/admin/users/${userId}/roles`)
+}
+
+export function setUserRoles(userId, roleIds) {
+  return api.put(`/admin/users/${userId}/roles`, { role_ids: roleIds })
+}
+
+
 export function getAllProducts(params) {
   return api.get('/admin/products', { params })
 }

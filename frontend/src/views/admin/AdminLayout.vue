@@ -43,6 +43,7 @@ export default {
         { title: '工单管理', icon: 'orders-o', path: '/admin/orders' },
         { title: '工单售后', icon: 'after-sale-o', path: '/admin/dealer-orders' },
         { title: '用户管理', icon: 'friends-o', path: '/admin/users' },
+        { title: '角色管理', icon: 'manager-o', path: '/admin/roles' },
         { title: '产品管理', icon: 'goods-o', path: '/admin/products' },
         { title: '绑定记录', icon: 'cluster-o', path: '/admin/bindings' },
         { title: '故障库', icon: 'warning-o', path: '/admin/faults' }

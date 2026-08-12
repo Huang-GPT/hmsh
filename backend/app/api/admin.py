@@ -8,6 +8,7 @@ from app.models.work_order import WorkOrder
 from app.models.common_fault import FaultCategory, CommonFault
 from app.models.product import Product
 from app.models.system import SystemConfig, RolePermission
+from app.models.rbac import Permission as RbacPermission, Role as RbacRole, RolePermission as RbacRolePermission, UserRole as RbacUserRole
 from app import db
 import csv
 import io
@@ -67,11 +68,39 @@ def create_user():
         phone=data.get('phone'),
         password_hash=hash_password(init_password),
         service_point_id=data.get('service_point_id'),
-        status='active'
+        email=data.get('email'),
+        real_name=data.get('real_name'),
+        department=data.get('department'),
+        remark=data.get('remark'),
+        status='active',
     )
     db.session.add(user)
+    db.session.flush()
+    # 自动按 role 绑同名 RBAC 角色
+    rbac_role = RbacRole.query.filter_by(code=data['role']).first()
+    if rbac_role:
+        db.session.add(RbacUserRole(user_id=user.id, role_id=rbac_role.id))
     db.session.commit()
     return jsonify({'message': '创建成功', 'user': user.to_dict()})
+
+@bp.route('/admin/users/<int:user_id>', methods=['PUT'])
+@login_required
+@role_required('admin')
+def update_user(user_id):
+    """编辑用户（含 email/real_name/department/remark）"""
+    user = User.query.get_or_404(user_id)
+    data = request.get_json() or {}
+    if 'nickname' in data: user.nickname = data['nickname']
+    if 'phone' in data: user.phone = data['phone']
+    if 'email' in data: user.email = data['email']
+    if 'real_name' in data: user.real_name = data['real_name']
+    if 'department' in data: user.department = data['department']
+    if 'remark' in data: user.remark = data['remark']
+    if 'service_point_id' in data: user.service_point_id = data['service_point_id']
+    if 'role' in data and data['role'] in ['admin','dispatcher','service_point','engineer','operator','customer']:
+        user.role = data['role']
+    db.session.commit()
+    return jsonify({'message': '更新成功', 'user': user.to_dict()})
 
 @bp.route('/admin/users/<int:user_id>/status', methods=['PUT'])
 @login_required
@@ -1124,3 +1153,179 @@ def admin_dealer_orders():
 
     orders = query.order_by(WorkOrder.created_at.desc()).limit(500).all()
     return jsonify({'orders': [o.to_dict() for o in orders]})
+
+
+# ========== RBAC：权限管理 ==========
+@bp.route('/admin/permissions', methods=['GET'])
+@login_required
+@role_required('admin')
+def list_permissions():
+    """列出所有权限（按 module 分组排序）"""
+    perms = RbacPermission.query.order_by(Permission.sort_order, Permission.id).all()
+    # 按模块分组
+    grouped = {}
+    for p in perms:
+        grouped.setdefault(p.module, []).append(p.to_dict())
+    return jsonify({
+        'items': [p.to_dict() for p in perms],
+        'grouped': grouped,
+        'modules': [
+            {'code': m, 'label': MODULE_LABELS.get(m, m), 'count': len(items)}
+            for m, items in grouped.items()
+        ],
+    })
+
+
+# ========== RBAC：角色管理 ==========
+MODULE_LABELS = {
+    'dashboard': '工作台',
+    'order': '工单管理',
+    'dealer_order': '工单售后',
+    'user': '用户管理',
+    'role': '角色权限',
+    'product': '产品管理',
+    'binding': '绑定记录',
+    'fault': '故障库',
+    'service_point': '服务点',
+    'statistics': '数据统计',
+    'system': '系统设置',
+}
+
+
+@bp.route('/admin/roles', methods=['GET'])
+@login_required
+@role_required('admin')
+def list_roles():
+    """列出所有角色（含 permission_ids）"""
+    roles = RbacRole.query.order_by(Role.sort_order, Role.id).all()
+    return jsonify({'items': [r.to_dict(include_permissions=False) for r in roles]})
+
+
+@bp.route('/admin/roles/<int:role_id>', methods=['GET'])
+@login_required
+@role_required('admin')
+def get_role(role_id):
+    """角色详情（含完整权限列表）"""
+    role = RbacRbacRole.query.get_or_404(role_id)
+    return jsonify(role.to_dict(include_permissions=True))
+
+
+@bp.route('/admin/roles', methods=['POST'])
+@login_required
+@role_required('admin')
+def create_role():
+    """新建角色"""
+    data = request.get_json() or {}
+    if not data.get('code') or not data.get('name'):
+        return jsonify({'error': '编码和名称必填'}), 400
+    if RbacRole.query.filter_by(code=data['code']).first():
+        return jsonify({'error': '角色编码已存在'}), 400
+
+    role = RbacRole(
+        code=data['code'],
+        name=data['name'],
+        description=data.get('description', ''),
+        builtin=False,
+        sort_order=data.get('sort_order', 99),
+        status=data.get('status', 'active'),
+    )
+    db.session.add(role)
+    db.session.flush()
+
+    # 设置权限
+    permission_ids = data.get('permission_ids', [])
+    for pid in permission_ids:
+        if RbacRbacPermission.query.get(pid):
+            db.session.add(RbacRolePermission(role_id=role.id, permission_id=pid))
+    db.session.commit()
+    return jsonify({'message': '角色创建成功', 'role': role.to_dict(include_permissions=True)})
+
+
+@bp.route('/admin/roles/<int:role_id>', methods=['PUT'])
+@login_required
+@role_required('admin')
+def update_role(role_id):
+    """更新角色（含权限）"""
+    role = RbacRbacRole.query.get_or_404(role_id)
+    data = request.get_json() or {}
+
+    if 'name' in data:
+        role.name = data['name']
+    if 'description' in data:
+        role.description = data['description']
+    if 'status' in data and not role.builtin:
+        role.status = data['status']
+    if 'sort_order' in data:
+        role.sort_order = data['sort_order']
+
+    # 更新权限（全量替换）
+    if 'permission_ids' in data:
+        # 先删后加
+        RoleRbacPermission.query.filter_by(role_id=role.id).delete()
+        for pid in data['permission_ids']:
+            if RbacRbacPermission.query.get(pid):
+                db.session.add(RbacRolePermission(role_id=role.id, permission_id=pid))
+
+    db.session.commit()
+    return jsonify({'message': '角色更新成功', 'role': role.to_dict(include_permissions=True)})
+
+
+@bp.route('/admin/roles/<int:role_id>', methods=['DELETE'])
+@login_required
+@role_required('admin')
+def delete_role(role_id):
+    """删除角色（内置角色保护）"""
+    role = RbacRbacRole.query.get_or_404(role_id)
+    if role.builtin:
+        return jsonify({'error': '内置角色不可删除'}), 400
+    # 检查是否还有用户绑定
+    if role.user_roles.count() > 0:
+        return jsonify({'error': f'还有 {role.user_roles.count()} 个用户绑定此角色，请先解绑'}), 400
+    db.session.delete(role)
+    db.session.commit()
+    return jsonify({'message': '角色已删除', 'id': role_id})
+
+
+# ========== RBAC：用户角色分配 ==========
+@bp.route('/admin/users/<int:user_id>/roles', methods=['GET'])
+@login_required
+@role_required('admin')
+def get_user_roles(user_id):
+    """查用户的角色"""
+    user = User.query.get_or_404(user_id)
+    return jsonify({
+        'user_id': user_id,
+        'roles': [ur.role.to_dict(include_permissions=False) for ur in user.user_roles],
+        'role_ids': [ur.role_id for ur in user.user_roles],
+    })
+
+
+@bp.route('/admin/users/<int:user_id>/roles', methods=['PUT'])
+@login_required
+@role_required('admin')
+def set_user_roles(user_id):
+    """设置用户的角色（全量替换）"""
+    user = User.query.get_or_404(user_id)
+    data = request.get_json() or {}
+    role_ids = data.get('role_ids', [])
+
+    # 删除旧绑定
+    UserRbacRole.query.filter_by(user_id=user_id).delete()
+    # 加新绑定
+    for rid in role_ids:
+        if RbacRbacRole.query.get(rid):
+            db.session.add(RbacUserRole(user_id=user_id, role_id=rid))
+
+    # 同步 user.role 字段（取第一个角色 code 作为主角色）
+    if role_ids:
+        first_role = RbacRbacRole.query.get(role_ids[0])
+        if first_role:
+            user.role = first_role.code if first_role.code in ['admin','dispatcher','service_point','engineer','operator','customer'] else user.role
+
+    db.session.commit()
+    return jsonify({
+        'message': '角色分配成功',
+        'user_id': user_id,
+        'role_ids': role_ids,
+        'roles': [ur.role.to_dict(include_permissions=False) for ur in user.user_roles],
+    })
