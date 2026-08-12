@@ -1206,7 +1206,7 @@ def list_roles():
 @role_required('admin')
 def get_role(role_id):
     """角色详情（含完整权限列表）"""
-    role = RbacRbacRole.query.get_or_404(role_id)
+    role = RbacRole.query.get_or_404(role_id)
     return jsonify(role.to_dict(include_permissions=True))
 
 
@@ -1235,7 +1235,7 @@ def create_role():
     # 设置权限
     permission_ids = data.get('permission_ids', [])
     for pid in permission_ids:
-        if RbacRbacPermission.query.get(pid):
+        if RbacRolePermission.query.get(pid):
             db.session.add(RbacRolePermission(role_id=role.id, permission_id=pid))
     db.session.commit()
     return jsonify({'message': '角色创建成功', 'role': role.to_dict(include_permissions=True)})
@@ -1246,7 +1246,7 @@ def create_role():
 @role_required('admin')
 def update_role(role_id):
     """更新角色（含权限）"""
-    role = RbacRbacRole.query.get_or_404(role_id)
+    role = RbacRole.query.get_or_404(role_id)
     data = request.get_json() or {}
 
     if 'name' in data:
@@ -1263,7 +1263,7 @@ def update_role(role_id):
         # 先删后加
         RoleRbacPermission.query.filter_by(role_id=role.id).delete()
         for pid in data['permission_ids']:
-            if RbacRbacPermission.query.get(pid):
+            if RbacRolePermission.query.get(pid):
                 db.session.add(RbacRolePermission(role_id=role.id, permission_id=pid))
 
     db.session.commit()
@@ -1275,7 +1275,7 @@ def update_role(role_id):
 @role_required('admin')
 def delete_role(role_id):
     """删除角色（内置角色保护）"""
-    role = RbacRbacRole.query.get_or_404(role_id)
+    role = RbacRole.query.get_or_404(role_id)
     if role.builtin:
         return jsonify({'error': '内置角色不可删除'}), 400
     # 检查是否还有用户绑定
@@ -1313,12 +1313,12 @@ def set_user_roles(user_id):
     UserRbacRole.query.filter_by(user_id=user_id).delete()
     # 加新绑定
     for rid in role_ids:
-        if RbacRbacRole.query.get(rid):
+        if RbacRole.query.get(rid):
             db.session.add(RbacUserRole(user_id=user_id, role_id=rid))
 
     # 同步 user.role 字段（取第一个角色 code 作为主角色）
     if role_ids:
-        first_role = RbacRbacRole.query.get(role_ids[0])
+        first_role = RbacRole.query.get(role_ids[0])
         if first_role:
             user.role = first_role.code if first_role.code in ['admin','dispatcher','service_point','engineer','operator','customer'] else user.role
 
