@@ -37,7 +37,7 @@ const routes = [
     { path: 'products', name: 'AdminProducts', component: AdminProducts },
     { path: 'bindings', name: 'AdminBindings', component: AdminBindings },
     { path: 'faults', name: 'AdminFaults', component: AdminFaults },
-    { path: 'dealer-orders', name: 'AdminDealerOrders', component: () => import('@/views/admin/AdminDealerOrders.vue') }
+    { path: 'dealer-orders', name: 'AdminDealerOrders', component: () => import('@/views/admin/AdminDealerOrders.vue') },
     { path: 'roles', name: 'AdminRoles', component: AdminRoles }
   ]},
   { path: '/dealer', component: AdminLayout, children: [
