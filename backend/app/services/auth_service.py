@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 from flask import request, jsonify, current_app, g
 from app.models.user import User
-from app.models.system import TokenBlacklist, LegacyLegacyRolePermission
+from app.models.system import TokenBlacklist, LegacyRolePermission
 
 def hash_password(password):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(current_app.config['BCRYPT_LOG_ROUNDS'])).decode('utf-8')
