@@ -58,6 +58,11 @@ export function updateUser(userId, data) {
   return api.put(`/admin/users/${userId}`, data)
 }
 
+
+// === 用户删除 ===
+export function deleteUser(userId) {
+  return api.delete(`/admin/users/${userId}`)
+}
 // === 用户启停 ===
 export function toggleUserStatus(userId) {
   return api.put(`/admin/users/${userId}/status`)

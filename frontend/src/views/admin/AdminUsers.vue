@@ -96,6 +96,7 @@
               <a class="op-link" :class="u.status === 'active' ? 'danger' : 'success'" @click="doToggle(u)">
                 {{ u.status === 'active' ? '停用' : '启用' }}
               </a>
+              <a class="op-link danger" @click="doDelete(u)">删除</a>
             </td>
           </tr>
         </tbody>
@@ -158,6 +159,14 @@
       </div>
     </van-dialog>
 
+    <!-- ============ 删除确认弹窗 ============ -->
+    <van-dialog v-model:show="showDeleteConfirm" title="删除用户" show-cancel-button @confirm="submitDelete">
+      <div class="dialog-body">
+        <div class="dialog-tip">确定删除用户 <strong>{{ currentUser && (currentUser.real_name || currentUser.nickname || currentUser.account) }}</strong>？</div>
+        <div class="dialog-warn">⚠️ 此操作不可恢复，将同时解除该用户的所有角色绑定。</div>
+      </div>
+    </van-dialog>
+
     <!-- ============ 重置密码弹窗 ============ -->
     <van-dialog v-model:show="showResetPwd" title="重置密码" show-cancel-button @confirm="submitResetPwd">
       <div class="dialog-body">
@@ -172,7 +181,7 @@
 
 <script>
 import {
-  getAllUsers, createUser, updateUser, toggleUserStatus, resetPassword,
+  getAllUsers, createUser, updateUser, toggleUserStatus, resetPassword, deleteUser,
   listRoles, getUserRoles, setUserRoles, getServicePoints,
 } from '@/api/admin'
 
@@ -212,6 +221,8 @@ export default {
 
       showResetPwd: false,
       resetPwdForm: { new_password: '' },
+
+      showDeleteConfirm: false,
     }
   },
   computed: {
@@ -357,6 +368,22 @@ export default {
         this.$toast('操作失败')
       }
     },
+    doDelete(u) {
+      this.currentUser = u
+      this.showDeleteConfirm = true
+    },
+    async submitDelete() {
+      try {
+        await deleteUser(this.currentUser.id)
+        this.$toast.success('用户已删除')
+        this.showDeleteConfirm = false
+        this.currentUser = null
+        this.loadUsers()
+      } catch (e) {
+        const err = (e && e.response && e.response.data && e.response.data.error) || '操作失败'
+        this.$toast(err)
+      }
+    },
     async doToggle(u) {
       try {
         await toggleUserStatus(u.id)
@@ -457,4 +484,14 @@ export default {
 .rc-name { font-weight: 500; color: #1f2937; }
 .rc-desc { font-size: 12px; color: #6b7280; flex: 1; }
 .rc-builtin { font-size: 11px; background: #fef3c7; color: #b45309; padding: 1px 6px; border-radius: 8px; }
+
+.dialog-warn {
+  font-size: 13px;
+  color: #ee0a24;
+  background: #fff7e8;
+  border: 1px solid #ffd591;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-top: 8px;
+}
 </style>

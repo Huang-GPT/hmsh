@@ -111,6 +111,40 @@ def toggle_user_status(user_id):
     db.session.commit()
     return jsonify({'message': 'ok', 'status': user.status})
 
+@bp.route('/admin/users/<int:user_id>', methods=['DELETE'])
+@login_required
+@role_required('admin')
+def delete_user(user_id):
+    """硬删除用户 — 业务校验：
+       1. 不能删除自己
+       2. 不能删除最后一个 admin 用户（防止系统无人管理）
+       3. 不能删除有工单关联的用户（保留可追溯性）
+    """
+    user = User.query.get_or_404(user_id)
+
+    # 1. 自我保护
+    if hasattr(g, 'user_id') and g.user_id == user_id:
+        return jsonify({'error': '不能删除当前登录用户'}), 400
+
+    # 2. 最后一个 admin 保护
+    if user.role == 'admin':
+        admin_count = User.query.filter_by(role='admin', status='active').count()
+        if admin_count <= 1:
+            return jsonify({'error': '不能删除唯一的管理员账号，请先创建其他管理员'}), 400
+
+    # 3. 工单关联保护
+    order_count = WorkOrder.query.filter_by(user_id=user_id).count()
+    if order_count > 0:
+        return jsonify({
+            'error': f'该用户有 {order_count} 个工单关联，无法删除',
+            'order_count': order_count,
+        }), 400
+
+    # 4. 执行删除（user_roles 由 cascade='all, delete-orphan' 自动级联）
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({'message': '用户已删除', 'id': user_id})
+
 @bp.route('/admin/users/<int:user_id>/reset-password', methods=['POST'])
 @login_required
 @role_required('admin')
