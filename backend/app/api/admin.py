@@ -1,4 +1,4 @@
-from flask import request, jsonify, g
+from flask import request, jsonify, g, Response
 from sqlalchemy.orm import joinedload
 from app.api import bp
 from app.services.auth_service import login_required, role_required, hash_password
@@ -199,6 +199,144 @@ def delete_service_point(sp_id):
     sp.status = 'disabled'
     db.session.commit()
     return jsonify({'message': '已删除'})
+
+
+# ========== 服务点维护（admin 增强） ==========
+@bp.route('/admin/service-points/all', methods=['GET'])
+@login_required
+@role_required('admin')
+def list_all_service_points():
+    """维护页：含禁用，全量返回"""
+    points = ServicePoint.query.order_by(ServicePoint.id.asc()).all()
+    return jsonify({'items': [p.to_dict() for p in points]})
+
+@bp.route('/admin/service-points/<int:sp_id>/restore', methods=['POST'])
+@login_required
+@role_required('admin')
+def restore_service_point(sp_id):
+    sp = ServicePoint.query.get_or_404(sp_id)
+    sp.status = 'active'
+    db.session.commit()
+    return jsonify({'message': '已启用', 'service_point': sp.to_dict()})
+
+@bp.route('/admin/service-points/<int:sp_id>/hard-delete', methods=['DELETE'])
+@login_required
+@role_required('admin')
+def hard_delete_service_point(sp_id):
+    """硬删除：检查是否有关联用户/工程师/工单，有则拒绝"""
+    sp = ServicePoint.query.get_or_404(sp_id)
+    # 关联用户
+    if User.query.filter_by(service_point_id=sp_id).count() > 0:
+        return jsonify({'error': '该服务点下有用户，无法删除'}), 400
+    # 关联工程师
+    if Engineer.query.filter_by(service_point_id=sp_id).count() > 0:
+        return jsonify({'error': '该服务点下有工程师，无法删除'}), 400
+    # 关联工单
+    if WorkOrder.query.filter_by(service_point_id=sp_id).count() > 0:
+        return jsonify({'error': '该服务点有工单记录，无法删除'}), 400
+    db.session.delete(sp)
+    db.session.commit()
+    return jsonify({'message': '已彻底删除'})
+
+@bp.route('/admin/service-points/import', methods=['POST'])
+@login_required
+@role_required('admin')
+def import_service_points():
+    """CSV 导入：列顺序 名称,联系人,联系电话,地区,地址
+       第二行起为数据，跳过表头；同名校验：已存在则覆盖更新"""
+    if 'file' not in request.files:
+        return jsonify({'error': '未上传文件'}), 400
+    f = request.files['file']
+    raw = f.read()
+    # 兼容 utf-8-sig / gbk
+    for enc in ('utf-8-sig', 'utf-8', 'gbk', 'gb18030'):
+        try:
+            text = raw.decode(enc)
+            break
+        except Exception:
+            continue
+    else:
+        return jsonify({'error': '文件编码不支持'}), 400
+    reader = csv.reader(io.StringIO(text))
+    rows = list(reader)
+    if not rows:
+        return jsonify({'error': '文件为空'}), 400
+
+    # 跳过表头（若第一行包含"名称"）
+    start = 1 if rows and any('名称' in c for c in rows[0]) else 0
+    created = 0
+    updated = 0
+    skipped = 0
+    errors = []
+    for i, row in enumerate(rows[start:], start=start + 1):
+        if not row or not any(c.strip() for c in row):
+            continue
+        if len(row) < 1 or not row[0].strip():
+            errors.append(f'第{i}行：名称为空')
+            skipped += 1
+            continue
+        name = row[0].strip()
+        contact_person = (row[1] if len(row) > 1 else '').strip()
+        contact_phone  = (row[2] if len(row) > 2 else '').strip()
+        region         = (row[3] if len(row) > 3 else '').strip()
+        address        = (row[4] if len(row) > 4 else '').strip()
+        try:
+            sp = ServicePoint.query.filter_by(name=name).first()
+            if sp:
+                sp.contact_person = contact_person or sp.contact_person
+                sp.contact_phone  = contact_phone or sp.contact_phone
+                sp.region         = region or sp.region
+                sp.address        = address or sp.address
+                sp.status = 'active'
+                updated += 1
+            else:
+                sp = ServicePoint(
+                    name=name,
+                    contact_person=contact_person,
+                    contact_phone=contact_phone,
+                    region=region,
+                    address=address,
+                )
+                db.session.add(sp)
+                created += 1
+        except Exception as e:
+            errors.append(f'第{i}行：{e}')
+            skipped += 1
+    db.session.commit()
+    return jsonify({
+        'message': f'导入完成：新增 {created} 条，更新 {updated} 条，跳过 {skipped} 条',
+        'created': created,
+        'updated': updated,
+        'skipped': skipped,
+        'errors': errors[:20],
+    })
+
+@bp.route('/admin/service-points/export', methods=['GET'])
+@login_required
+@role_required('admin')
+def export_service_points():
+    """导出 CSV：列 名称,联系人,联系电话,地区,地址,状态"""
+    points = ServicePoint.query.order_by(ServicePoint.id.asc()).all()
+    buf = io.StringIO()
+    # 写入 UTF-8 BOM 让 Excel 打开中文不乱码
+    writer = csv.writer(buf)
+    writer.writerow(['名称', '联系人', '联系电话', '地区', '地址', '状态'])
+    for p in points:
+        writer.writerow([
+            p.name or '',
+            p.contact_person or '',
+            p.contact_phone or '',
+            p.region or '',
+            p.address or '',
+            '启用' if p.status == 'active' else '停用',
+        ])
+    csv_text = '﻿' + buf.getvalue()
+    filename = 'service_points_' + datetime.now().strftime('%Y%m%d_%H%M%S') + '.csv'
+    return Response(
+        csv_text.encode('utf-8'),
+        mimetype='text/csv; charset=utf-8',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
 
 # ========== 工程师管理 ==========
 @bp.route('/admin/engineers', methods=['GET'])

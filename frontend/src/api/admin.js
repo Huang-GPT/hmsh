@@ -246,3 +246,41 @@ export function getAllDealerOrders(params) {
   // 总部视角：查看所有经销商的工单售后
   return api.get('/admin/dealer-orders', { params })
 }
+
+
+// === 服务点维护（admin） ===
+export function listAllServicePoints() {
+  return api.get('/admin/service-points/all')
+}
+
+export function createServicePoint(data) {
+  return api.post('/admin/service-points', data)
+}
+
+export function updateServicePoint(spId, data) {
+  return api.put(`/admin/service-points/${spId}`, data)
+}
+
+export function softDeleteServicePoint(spId) {
+  return api.delete(`/admin/service-points/${spId}`)
+}
+
+export function restoreServicePoint(spId) {
+  return api.post(`/admin/service-points/${spId}/restore`)
+}
+
+export function hardDeleteServicePoint(spId) {
+  return api.delete(`/admin/service-points/${spId}/hard-delete`)
+}
+
+export function importServicePoints(file) {
+  const fd = new FormData()
+  fd.append('file', file)
+  return api.post('/admin/service-points/import', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
+export function exportServicePointsUrl() {
+  return '/api/admin/service-points/export'
+}
