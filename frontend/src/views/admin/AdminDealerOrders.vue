@@ -24,10 +24,14 @@
 
     <div class="toolbar">
       <div class="toolbar-row toolbar-top">
-        <select v-model="filterSp" class="filter-select" @change="loadOrders">
+        <select v-if="!isSpUser" v-model="filterSp" class="filter-select" @change="loadOrders">
           <option value="">全部服务点</option>
           <option v-for="sp in servicePoints" :key="sp.id" :value="sp.id">{{ sp.name }}</option>
         </select>
+        <div v-else class="sp-context">
+          <van-icon name="location-o" />
+          <span>当前服务点：<strong>{{ currentServicePointName || '（未分配）' }}</strong></span>
+        </div>
         <van-button size="small" plain icon="replay" @click="loadOrders()">刷新</van-button>
       </div>
       <div class="toolbar-row toolbar-bottom">
@@ -373,6 +377,12 @@ export default {
       servicePoints: [],
       orders: [],
       loading: false,
+      currentUser: null,
+      currentServicePointName: '',
+      isSpUser: false,
+      currentUser: null,
+      currentServicePointName: '',
+      isSpUser: false,
       kpi: { dispatched: 0, assigned_engineer: 0, processing: 0, completed: 0, closed: 0, cancelled: 0 },
 
       showDetail: false,
@@ -409,6 +419,7 @@ export default {
     },
   },
   async created() {
+    this.loadCurrentUser()
     try {
       const spRes = await getServicePoints()
       const data = spRes.data || {}
@@ -419,6 +430,23 @@ export default {
   methods: {
     setTab(name) {
       this.activeTab = name
+    },
+    loadCurrentUser() {
+      try {
+        const u = JSON.parse(localStorage.getItem('admin_user') || 'null')
+        this.currentUser = u
+        const isSp = u && (u.role === 'service_point' || u.role === 'service_point_admin')
+        this.isSpUser = !!isSp
+        if (isSp && u.service_point_id) {
+          this.filterSp = String(u.service_point_id)
+          this.currentServicePointName = u.service_point_name || ('服务点 #' + u.service_point_id)
+        } else {
+          this.currentServicePointName = ''
+        }
+      } catch (e) {
+        this.currentUser = null
+        this.isSpUser = false
+      }
     },
     async loadOrders() {
       this.loading = true
@@ -1372,6 +1400,17 @@ h3 {
 
 
 /* ===== DealerOrders 特有样式 ===== */
+.sp-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #e8f4ff;
+  border-radius: 14px;
+  font-size: 13px;
+  color: #1989fa;
+}
+.sp-context strong { color: #1f2937; margin-left: 2px; }
 .filter-select {
   flex: 1;
   min-width: 180px;

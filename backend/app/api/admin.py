@@ -60,6 +60,11 @@ def create_user():
     if User.query.filter_by(openid=data['account']).first():
         return jsonify({'error': '账号已存在'}), 400
 
+    # 校验 service_point_id 必须存在
+    sp_id = data.get('service_point_id')
+    if sp_id is not None and not ServicePoint.query.get(sp_id):
+        return jsonify({'error': '服务点不存在'}), 400
+
     init_password = data.get('password', '123456')
     user = User(
         openid=data['account'],
@@ -67,7 +72,7 @@ def create_user():
         role=data['role'],
         phone=data.get('phone'),
         password_hash=hash_password(init_password),
-        service_point_id=data.get('service_point_id'),
+        service_point_id=sp_id,
         email=data.get('email'),
         real_name=data.get('real_name'),
         department=data.get('department'),
@@ -76,10 +81,16 @@ def create_user():
     )
     db.session.add(user)
     db.session.flush()
-    # 自动按 role 绑同名 RBAC 角色
+    # 自动按 role 绑同名 RBAC 角色（找不到不阻断）
     rbac_role = RbacRole.query.filter_by(code=data['role']).first()
     if rbac_role:
         db.session.add(RbacUserRole(user_id=user.id, role_id=rbac_role.id))
+    # 也支持直接传 rbac_role_ids（多角色）
+    for rid in (data.get('rbac_role_ids') or []):
+        if rid == (rbac_role.id if rbac_role else None):
+            continue
+        if RbacRole.query.get(rid):
+            db.session.add(RbacUserRole(user_id=user.id, role_id=rid))
     db.session.commit()
     return jsonify({'message': '创建成功', 'user': user.to_dict()})
 
@@ -501,12 +512,24 @@ def reject_cancel(order_id):
 # ========== 服务点工作台 ==========
 @bp.route('/admin/orders/service-point', methods=['GET'])
 @login_required
-@role_required('admin','service_point')
+@role_required('admin','service_point','service_point_admin')
 def service_point_orders():
+    """经销商视角工单台：service_point 用户按自己服务点过滤，空则全看"""
     user = User.query.get(g.current_user_id)
-    sp_id = user.service_point_id if user.role == 'service_point' else request.args.get('service_point_id', type=int)
-    if not sp_id:
-        return jsonify({'error': '无服务点'}), 400
+    is_sp_user = user and user.role in ('service_point', 'service_point_admin')
+    if is_sp_user:
+        sp_id = user.service_point_id
+        # sp_id 为空：透传全量（status 限定在售后台关心的几个）
+        if not sp_id:
+            orders = WorkOrder.query.filter(
+                WorkOrder.service_point_id.isnot(None),
+                WorkOrder.status.in_(['dispatched','assigned_engineer','processing'])
+            ).order_by(WorkOrder.created_at.asc()).all()
+            return jsonify({'orders': [o.to_dict() for o in orders]})
+    else:
+        sp_id = request.args.get('service_point_id', type=int)
+        if not sp_id:
+            return jsonify({'error': '无服务点'}), 400
     orders = WorkOrder.query.filter(WorkOrder.service_point_id == sp_id, WorkOrder.status.in_(['dispatched','assigned_engineer','processing'])).order_by(WorkOrder.created_at.asc()).all()
     return jsonify({'orders': [o.to_dict() for o in orders]})
 
@@ -1300,15 +1323,28 @@ def dealer_accept_order(order_id):
 
 @bp.route('/admin/dealer-orders', methods=['GET'])
 @login_required
-@role_required('admin', 'dispatcher')
+@role_required('admin', 'dispatcher', 'service_point', 'service_point_admin')
 def admin_dealer_orders():
     """总部视角：查看所有经销商（service_point）的工单售后
 
     可选 query: service_point_id / status
     返回每个工单关联的 service_point_name + assigned_engineer 信息
+
+    权限规则：
+    - admin / dispatcher：默认看到全部，可选 service_point_id 过滤
+    - service_point / service_point_admin：
+        当前用户有 service_point_id → 强制只看到自己服务点的工单
+        当前用户 service_point_id 为空 → 看到全部
     """
+    me = User.query.get(g.current_user_id)
+    me_role = (me.role if me else '') or ''
     sp_id = request.args.get('service_point_id', type=int)
     status = request.args.get('status')
+
+    # 服务点用户：强制按自己服务点过滤（空就全看）
+    is_sp_user = me_role in ('service_point', 'service_point_admin')
+    if is_sp_user and me and me.service_point_id:
+        sp_id = me.service_point_id
 
     query = WorkOrder.query.options(
         joinedload(WorkOrder.service_point),

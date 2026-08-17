@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
     nickname VARCHAR(64),
     avatar VARCHAR(255),
     password_hash VARCHAR(128) COMMENT '管理端密码bcrypt',
-    role ENUM('customer','dispatcher','service_point','engineer','operator','admin') NOT NULL DEFAULT 'customer',
+    role ENUM('customer','dispatcher','service_point','service_point_admin','engineer','operator','admin') NOT NULL DEFAULT 'customer',
     status ENUM('active','disabled') NOT NULL DEFAULT 'active',
     service_point_id INT COMMENT '所属服务点',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

@@ -10,7 +10,7 @@ class User(db.Model):
     nickname = db.Column(db.String(64))
     avatar = db.Column(db.String(255))
     password_hash = db.Column(db.String(128))
-    role = db.Column(db.Enum('customer','dispatcher','service_point','engineer','operator','admin'), default='customer', nullable=False)
+    role = db.Column(db.Enum('customer','dispatcher','service_point','service_point_admin','engineer','operator','admin'), default='customer', nullable=False, comment='角色，与 RBAC 角色 code 对齐')
     status = db.Column(db.Enum('active','disabled'), default='active', nullable=False)
     service_point_id = db.Column(db.Integer, db.ForeignKey('service_points.id'))
     permissions = db.Column(db.JSON, comment='菜单权限列表')

@@ -51,7 +51,7 @@ export default {
         const res = await adminLogin(this.account, this.password)
         const user = res.data.user
         localStorage.setItem('admin_user', JSON.stringify(user))
-        if (user.role === 'service_point') {
+        if (user.role === 'service_point' || user.role === 'service_point_admin') {
           this.$router.push('/dealer/orders')
         } else {
           this.$router.push('/admin/dashboard')

@@ -26,7 +26,7 @@ def admin_login():
     if not check_password(password, user.password_hash):
         return jsonify({'error': '密码错误'}), 401
 
-    if user.role not in ['dispatcher','service_point','engineer','operator','admin']:
+    if user.role not in ['dispatcher','service_point','service_point_admin','engineer','operator','admin']:
         return jsonify({'error': '无管理端权限'}), 403
 
     token = generate_token(user)
