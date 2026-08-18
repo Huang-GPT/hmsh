@@ -315,6 +315,30 @@
           </div>
         </section>
 
+        <!-- ===== 10.5 添加备注意见 ===== -->
+        <section class="ds-section">
+          <header class="ds-title"><van-icon name="comment-o" /> 添加备注意见</header>
+          <div class="ds-note-form">
+            <textarea
+              v-model="noteForm.remark"
+              class="ds-note-textarea"
+              placeholder="请输入备注意见（最多 1000 字）"
+              maxlength="1000"
+              rows="3"
+            />
+            <div class="ds-note-bar">
+              <span class="ds-note-count">{{ (noteForm.remark || '').length }} / 1000</span>
+              <van-button
+                size="small"
+                type="primary"
+                :loading="noteSubmitting"
+                :disabled="!(noteForm.remark || '').trim()"
+                @click="submitNote"
+              >提交备注</van-button>
+            </div>
+          </div>
+        </section>
+
         <!-- ===== 11. 处理记录（时间轴） ===== -->
         <section class="ds-section">
           <header class="ds-title"><van-icon name="todo-list-o" /> 处理记录</header>
@@ -326,7 +350,12 @@
               <div class="ds-dot" :class="logStatusClass(log.to_status)"></div>
               <div class="ds-timeline-content">
                 <div class="ds-timeline-head">
-                  <van-tag :type="logTagType(log.to_status)" size="mini">{{ statusMap[log.to_status] || log.to_status }}</van-tag>
+                  <template v-if="log.from_status === log.to_status">
+                    <van-tag type="primary" size="mini">备注</van-tag>
+                  </template>
+                  <template v-else>
+                    <van-tag :type="logTagType(log.to_status)" size="mini">{{ statusMap[log.to_status] || log.to_status }}</van-tag>
+                  </template>
                   <span class="ds-timeline-time">{{ formatDateTime(log.created_at) }}</span>
                 </div>
                 <div class="ds-timeline-operator">{{ log.operator_name || ('操作员#' + log.operator_id) }}</div>
@@ -402,6 +431,7 @@ import {
   getServicePoints, getEngineers,
   acceptOrderApi, dispatchOrder, assignEngineer,
   startProcessingOrder, completeOrderApi, confirmCompletedApi, rejectOrder,
+  addOrderNote,
 } from '@/api/admin'
 
 export default {
@@ -428,6 +458,9 @@ export default {
 
       showImagePreview: false,
       previewImages: [],
+
+      noteForm: { remark: '' },
+      noteSubmitting: false,
 
       statusMap: {
         pending_accept: '待受理',
@@ -609,6 +642,8 @@ export default {
         const data = res.data || {}
         if (data.order) this.currentOrder = data.order
         else Object.assign(this.currentOrder, data)
+        // 清空备注意见表单
+        this.noteForm = { remark: '' };
         // 加载该服务点的工程师列表
         if (this.currentOrder.service_point_id) {
           this.loadEngineers(this.currentOrder.service_point_id)
@@ -618,6 +653,27 @@ export default {
       }
     },
 
+    async submitNote() {
+      const text = (this.noteForm.remark || '').trim()
+      if (!text) { this.$toast('请输入备注内容'); return }
+      this.noteSubmitting = true
+      try {
+        const res = await addOrderNote(this.currentOrder.id, text)
+        this.$toast.success(res.data?.message || '备注已提交')
+        // 清空表单
+        this.noteForm = { remark: '' }
+        // 刷新当前详情以拉取最新 status_logs
+        const r = await getOrderDetail(this.currentOrder.id)
+        const data = r.data || {}
+        if (data.order) this.currentOrder = data.order
+        else if (this.currentOrder) Object.assign(this.currentOrder, data)
+      } catch (e) {
+        const err = (e && e.response && e.response.data && e.response.data.error) || '提交失败'
+        this.$toast(err)
+      } finally {
+        this.noteSubmitting = false
+      }
+    },
     // ===== 操作 =====
     async acceptOrder() {
       try {
@@ -1511,6 +1567,37 @@ h3 {
 .ds-timeline-operator {
   font-size: 12px;
   color: #6b7280;
+}
+.ds-note-form {
+  padding: 0 4px;
+}
+.ds-note-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #1f2937;
+  background: #fafbfc;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.ds-note-textarea:focus {
+  border-color: #1989fa;
+  background: #fff;
+}
+.ds-note-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+.ds-note-count {
+  font-size: 12px;
+  color: #9ca3af;
 }
 .ds-timeline-remark {
   margin-top: 4px;

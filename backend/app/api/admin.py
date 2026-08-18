@@ -587,6 +587,32 @@ def update_progress(order_id):
     db.session.add(log)
     db.session.commit()
     return jsonify({'message': '进度已更新'})
+@bp.route('/admin/orders/<int:order_id>/note', methods=['POST'])
+@login_required
+@role_required('admin','dispatcher','service_point','service_point_admin')
+def add_order_note(order_id):
+    """添加备注意见：不改工单状态，仅在处理记录里追加一条 entry"""
+    order = WorkOrder.query.get_or_404(order_id)
+    data = request.get_json() or {}
+    remark = (data.get('remark') or '').strip()
+    if not remark:
+        return jsonify({'error': '备注不能为空'}), 400
+    if len(remark) > 1000:
+        return jsonify({'error': '备注最多 1000 字'}), 400
+    from app.models.work_order import OrderStatusLog
+    log = OrderStatusLog(
+        order_id=order.id,
+        from_status=order.status,
+        to_status=order.status,
+        operator_id=g.current_user_id,
+        operator_name=g.current_user_nickname,
+        remark=remark,
+        images=None,
+    )
+    db.session.add(log)
+    db.session.commit()
+    return jsonify({'message': '备注已提交', 'log': log.to_dict()})
+
 
 @bp.route('/admin/orders/<int:order_id>/complete', methods=['POST'])
 @login_required
