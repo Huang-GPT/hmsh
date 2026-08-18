@@ -25,13 +25,12 @@ export function assignOrder(orderId, handlerId) {
   return api.post(`/admin/orders/${orderId}/assign`, { handler_id: handlerId })
 }
 
-export function 
-
 // === 工单备注意见 ===
 export function addOrderNote(orderId, remark) {
   return api.post(`/admin/orders/${orderId}/note`, { remark })
 }
-updateOrderStatus(orderId, status, remark) {
+
+export function updateOrderStatus(orderId, status, remark) {
   return api.put(`/admin/orders/${orderId}/status`, { status, remark })
 }
 
