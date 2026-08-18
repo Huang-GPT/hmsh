@@ -642,6 +642,10 @@ export default {
         const data = res.data || {}
         if (data.order) this.currentOrder = data.order
         else Object.assign(this.currentOrder, data)
+        // 合并 status_logs（后端放在 data 顶层）
+        if (Array.isArray(data.status_logs)) {
+          this.currentOrder.status_logs = data.status_logs
+        }
         // 清空备注意见表单
         this.noteForm = { remark: '' };
         // 加载该服务点的工程师列表
@@ -667,6 +671,9 @@ export default {
         const data = r.data || {}
         if (data.order) this.currentOrder = data.order
         else if (this.currentOrder) Object.assign(this.currentOrder, data)
+        if (Array.isArray(data.status_logs) && this.currentOrder) {
+          this.currentOrder.status_logs = data.status_logs
+        }
       } catch (e) {
         const err = (e && e.response && e.response.data && e.response.data.error) || '提交失败'
         this.$toast(err)
