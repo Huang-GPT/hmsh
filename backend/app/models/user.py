@@ -13,7 +13,7 @@ class User(db.Model):
     role = db.Column(db.Enum('customer','dispatcher','service_point','service_point_admin','engineer','operator','admin'), default='customer', nullable=False, comment='角色，与 RBAC 角色 code 对齐')
     status = db.Column(db.Enum('active','disabled'), default='active', nullable=False)
     service_point_id = db.Column(db.Integer, db.ForeignKey('service_points.id'))
-    permissions = db.Column(db.JSON, comment='菜单权限列表')
+    permissions = db.Column(db.JSON, comment='菜单权限列表（旧字段，菜单权限备份，新逻辑走 RBAC）')
     # === RBAC 扩展字段 ===
     email = db.Column(db.String(128))
     real_name = db.Column(db.String(64), comment='真实姓名')
@@ -26,6 +26,39 @@ class User(db.Model):
     service_point = db.relationship('ServicePoint', backref='users', foreign_keys=[service_point_id])
     # 多对多：用户-角色
     user_roles = db.relationship('UserRole', backref='user', lazy='dynamic', cascade='all, delete-orphan')
+
+    def _resolve_permissions(self):
+        """从 RBAC（user_roles + role_permissions_v2 + permissions）聚合当前用户的权限 code。
+           - 没绑任何 RBAC 角色 → 退回 LegacyRolePermission（旧 JSON 表）
+           - 都没 → 退回 users.permissions JSON 字段（旧菜单权限）
+           返回：list[str]
+        """
+        # 1) RBAC
+        codes = set()
+        try:
+            for ur in self.user_roles.all():
+                role = ur.role
+                if not role or role.status != 'active':
+                    continue
+                for rp in role.role_permissions.all():
+                    if rp.permission and rp.permission.code:
+                        codes.add(rp.permission.code)
+        except Exception:
+            pass
+        if codes:
+            return sorted(codes)
+        # 2) LegacyRolePermission（按 users.role）
+        try:
+            from app.models.system import LegacyRolePermission
+            rp = LegacyRolePermission.query.filter_by(role=self.role).first()
+            if rp and rp.permissions:
+                return list(rp.permissions)
+        except Exception:
+            pass
+        # 3) users.permissions JSON 字段（最后兜底）
+        if self.permissions:
+            return list(self.permissions)
+        return []
 
     def to_dict(self):
         return {
@@ -43,7 +76,8 @@ class User(db.Model):
             'status': self.status,
             'service_point_id': self.service_point_id,
             'service_point_name': self.service_point.name if self.service_point else None,
-            'permissions': self.permissions,
+            # RBAC 聚合后的 permissions（前端路由守卫 + 菜单过滤都依赖这个）
+            'permissions': self._resolve_permissions(),
             'roles': [ur.role.to_dict() for ur in self.user_roles.all()],
             'role_ids': [ur.role_id for ur in self.user_roles.all()],
             'last_login_at': self.last_login_at.isoformat() if self.last_login_at else None,

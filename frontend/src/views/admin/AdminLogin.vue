@@ -49,7 +49,9 @@ export default {
       this.loading = true
       try {
         const res = await adminLogin(this.account, this.password)
-        const user = res.data.user
+        const user = res.data.user || {}
+        // token 已经在 api.js 的 response 拦截器里写进 localStorage.admin_token
+        // permissions 字段由后端 generate_token 时填入 user.to_dict()（user.permissions）
         localStorage.setItem('admin_user', JSON.stringify(user))
         if (user.role === 'service_point' || user.role === 'service_point_admin') {
           this.$router.push('/dealer/orders')

@@ -1,4 +1,4 @@
-﻿import jwt
+import jwt
 import bcrypt
 from datetime import datetime, timedelta
 from functools import wraps
@@ -12,15 +12,45 @@ def hash_password(password):
 def check_password(password, password_hash):
     return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
 
+# ---- RBAC：从 user_roles + role_permissions_v2 + permissions 三表聚合 ----
+def get_user_permissions_from_rbac(user):
+    """从新 RBAC 表聚合用户的权限 code 列表。
+       - 多个角色合并去重
+       - role.status='disabled' 的角色忽略
+       - permission 不区分 enabled/disabled（seed 时所有 permission 都是有效的）"""
+    try:
+        codes = set()
+        for ur in user.user_roles.all():
+            role = ur.role
+            if not role or role.status != 'active':
+                continue
+            for rp in role.role_permissions.all():
+                if rp.permission and rp.permission.code:
+                    codes.add(rp.permission.code)
+        return sorted(codes)
+    except Exception as e:
+        # RBAC 表未 seed 完 / 关系未建立等情况兜底
+        print(f'[rbac] get_user_permissions failed for user {getattr(user, "id", "?")}: {e}')
+        return []
+
 def get_role_permissions(role):
+    """兼容老入口：现在只走 LegacyRolePermission（旧 JSON 表）。
+       新代码请用 get_user_permissions_from_rbac(user)。"""
     rp = LegacyRolePermission.query.filter_by(role=role).first()
     if rp:
-        return rp.permissions
+        return rp.permissions or []
     return []
 
 def generate_token(user):
+    """签发 JWT。permissions 字段优先从 RBAC 表聚合；如果该用户没有任何 RBAC 角色绑定，
+       退回 LegacyRolePermission（旧 JSON 表），最后再退回 user.permissions JSON 字段。
+       这样既保证新系统生效，又不会让没迁完数据的账号立刻登不进。"""
     now = datetime.utcnow()
-    permissions = user.permissions if user.permissions else get_role_permissions(user.role)
+    permissions = get_user_permissions_from_rbac(user)
+    if not permissions:
+        permissions = get_role_permissions(user.role)
+    if not permissions and user.permissions:
+        permissions = user.permissions
     payload = {
         'user_id': user.id,
         'role': user.role,

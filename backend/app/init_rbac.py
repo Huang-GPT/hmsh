@@ -205,3 +205,31 @@ def init_rbac():
             db.session.add(UserRole(user_id=admin_user.id, role_id=admin_role.id))
             db.session.commit()
             print(f'[init_rbac] granted admin role to user {admin_user.openid}')
+
+    # 5. 【补救】按 users.role 自动绑定同名 RBAC 角色（针对迁移期间 / 早期注册的非 admin 账号）
+    #    比如 1003 是 service_point 角色，会自动绑上 service_point_admin 这个 RBAC 角色，
+    #    JWT 里就能拿到对应的 8 个权限。
+    #    已绑过的不会重复（unique 约束 + skip）。
+    legacy_role_to_rbac_code = {
+        'admin':         'admin',                # 内置 admin → 全权限 admin
+        'dispatcher':    'dispatcher',
+        'service_point': 'service_point_admin',  # 老的 users.role='service_point' → 新的 service_point_admin
+        'engineer':      'engineer',
+        'operator':      'operator',
+        'customer':      'customer',
+    }
+    granted_count = 0
+    for user in User.query.filter(User.status == 'active').all():
+        rbac_code = legacy_role_to_rbac_code.get(user.role)
+        if not rbac_code:
+            continue
+        rbac_role = Role.query.filter_by(code=rbac_code).first()
+        if not rbac_role:
+            continue
+        if UserRole.query.filter_by(user_id=user.id, role_id=rbac_role.id).first():
+            continue
+        db.session.add(UserRole(user_id=user.id, role_id=rbac_role.id))
+        granted_count += 1
+    if granted_count:
+        db.session.commit()
+        print(f'[init_rbac] auto-granted RBAC roles to {granted_count} users by users.role')

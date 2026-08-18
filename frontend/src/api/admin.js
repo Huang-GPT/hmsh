@@ -5,6 +5,28 @@ const api = axios.create({
   timeout: 10000
 })
 
+// ---- 拦截器：自动带 token + 把后端返回的 Authorization header 落 localStorage ----
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('admin_token')
+  if (token) {
+    config.headers = config.headers || {}
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+api.interceptors.response.use((response) => {
+  // 后端在登录响应里会把 Authorization: Bearer xxx 放在 header，前端抓出来
+  const auth = response.headers && (response.headers.authorization || response.headers.Authorization)
+  if (auth && /^Bearer\s+/.test(auth)) {
+    const token = auth.replace(/^Bearer\s+/, '').trim()
+    if (token) {
+      localStorage.setItem('admin_token', token)
+    }
+  }
+  return response
+})
+
 export function adminLogin(account, password) {
   return api.post('/auth/admin/login', { account, password })
 }

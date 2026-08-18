@@ -1,7 +1,7 @@
 from flask import request, jsonify, g, Response
 from sqlalchemy.orm import joinedload
 from app.api import bp
-from app.services.auth_service import login_required, role_required, hash_password
+from app.services.auth_service import login_required, role_required, permission_required, hash_password
 from app.models.user import User
 from app.models.service_point import ServicePoint, Engineer
 from app.models.work_order import WorkOrder
@@ -17,6 +17,7 @@ from datetime import datetime
 # ========== 工作台统计 ==========
 @bp.route('/admin/dashboard', methods=['GET'])
 @login_required
+@permission_required('dashboard:view')
 def dashboard():
     total = WorkOrder.query.count()
     pending_dispatch = WorkOrder.query.filter_by(status='pending_dispatch').count()
@@ -170,6 +171,7 @@ def reset_password(user_id):
 # ========== 服务点管理 ==========
 @bp.route('/admin/service-points', methods=['GET'])
 @login_required
+@permission_required('service_point:view')
 def get_service_points():
     points = ServicePoint.query.filter_by(status='active').all()
     return jsonify({'service_points': [p.to_dict() for p in points]})
@@ -352,6 +354,7 @@ def export_service_points():
 # ========== 工程师管理 ==========
 @bp.route('/admin/engineers', methods=['GET'])
 @login_required
+@permission_required('service_point:view')
 def get_engineers():
     sp_id = request.args.get('service_point_id', type=int)
     query = Engineer.query
@@ -399,7 +402,7 @@ def delete_engineer(e_id):
 # ========== 派单员工作台 ==========
 @bp.route('/admin/orders/pending-dispatch', methods=['GET'])
 @login_required
-@role_required('admin','dispatcher')
+@permission_required('order:dispatch')
 def pending_dispatch_orders():
     query = WorkOrder.query.filter_by(status='pending_dispatch')
     family = request.args.get('product_family')
@@ -413,7 +416,7 @@ def pending_dispatch_orders():
 
 @bp.route('/admin/orders/<int:order_id>/accept', methods=['POST'])
 @login_required
-@role_required('admin','dispatcher','operator')
+@permission_required('order:accept')
 def accept_order(order_id):
     """受理工单：pending_accept → pending_dispatch（转待派单）"""
     order = WorkOrder.query.get_or_404(order_id)
@@ -430,7 +433,7 @@ def accept_order(order_id):
 
 @bp.route('/admin/orders/<int:order_id>/dispatch', methods=['POST'])
 @login_required
-@role_required('admin','dispatcher')
+@permission_required('order:dispatch')
 def dispatch_order(order_id):
     order = WorkOrder.query.get_or_404(order_id)
     if order.status != 'pending_dispatch':
@@ -451,7 +454,7 @@ def dispatch_order(order_id):
 
 @bp.route('/admin/orders/<int:order_id>/reject', methods=['POST'])
 @login_required
-@role_required('admin','dispatcher')
+@permission_required('order:reject')
 def reject_order(order_id):
     order = WorkOrder.query.get_or_404(order_id)
     if order.status not in ['pending_dispatch','pending_accept']:
@@ -471,7 +474,7 @@ def reject_order(order_id):
 # ========== 撤销审核 ==========
 @bp.route('/admin/orders/pending-cancel', methods=['GET'])
 @login_required
-@role_required('admin','dispatcher')
+@permission_required('order:view')
 def pending_cancel_orders():
     from app.models.work_order import OrderStatusLog
     cancel_logs = OrderStatusLog.query.filter_by(to_status='cancelled').all()
@@ -481,7 +484,7 @@ def pending_cancel_orders():
 
 @bp.route('/admin/orders/<int:order_id>/approve-cancel', methods=['POST'])
 @login_required
-@role_required('admin','dispatcher')
+@permission_required('order:cancel')
 def approve_cancel(order_id):
     order = WorkOrder.query.get_or_404(order_id)
     if order.status != 'cancelled':
@@ -496,7 +499,7 @@ def approve_cancel(order_id):
 
 @bp.route('/admin/orders/<int:order_id>/reject-cancel', methods=['POST'])
 @login_required
-@role_required('admin','dispatcher')
+@permission_required('order:cancel')
 def reject_cancel(order_id):
     order = WorkOrder.query.get_or_404(order_id)
     if order.status != 'cancelled':
@@ -512,7 +515,7 @@ def reject_cancel(order_id):
 # ========== 服务点工作台 ==========
 @bp.route('/admin/orders/service-point', methods=['GET'])
 @login_required
-@role_required('admin','service_point','service_point_admin')
+@permission_required('dealer_order:view')
 def service_point_orders():
     """经销商视角工单台：service_point 用户按自己服务点过滤，空则全看"""
     user = User.query.get(g.current_user_id)
@@ -535,7 +538,7 @@ def service_point_orders():
 
 @bp.route('/admin/orders/<int:order_id>/assign-engineer', methods=['POST'])
 @login_required
-@role_required('admin','service_point')
+@permission_required('order:assign_engineer')
 def assign_engineer(order_id):
     order = WorkOrder.query.get_or_404(order_id)
     if order.status != 'dispatched':
@@ -557,7 +560,7 @@ def assign_engineer(order_id):
 
 @bp.route('/admin/orders/<int:order_id>/start-processing', methods=['POST'])
 @login_required
-@role_required('admin','service_point','engineer')
+@permission_required('order:start_process')
 def start_processing(order_id):
     order = WorkOrder.query.get_or_404(order_id)
     if order.status != 'assigned_engineer':
@@ -574,7 +577,7 @@ def start_processing(order_id):
 
 @bp.route('/admin/orders/<int:order_id>/progress', methods=['POST'])
 @login_required
-@role_required('admin','service_point','engineer')
+@permission_required('order:start_process')
 def update_progress(order_id):
     order = WorkOrder.query.get_or_404(order_id)
     if order.status != 'processing':
@@ -616,7 +619,7 @@ def add_order_note(order_id):
 
 @bp.route('/admin/orders/<int:order_id>/complete', methods=['POST'])
 @login_required
-@role_required('admin','service_point','engineer')
+@permission_required('order:complete')
 def complete_order(order_id):
     order = WorkOrder.query.get_or_404(order_id)
     if order.status != 'processing':
@@ -636,7 +639,7 @@ def complete_order(order_id):
 # ========== 经销商文本分配工程师 ==========
 @bp.route('/admin/orders/<int:order_id>/assign-engineer-text', methods=['POST'])
 @login_required
-@role_required('service_point')
+@role_required('service_point','admin','dispatcher')
 def assign_engineer_text(order_id):
     order = WorkOrder.query.get_or_404(order_id)
     if order.status != 'dispatched':
@@ -661,7 +664,7 @@ def assign_engineer_text(order_id):
     return jsonify({'message': '分配成功', 'order': order.to_dict()})
 @bp.route('/admin/orders/<int:order_id>/confirm', methods=['POST'])
 @login_required
-@role_required('admin','dispatcher','operator')
+@permission_required('order:confirm')
 def admin_confirm_order(order_id):
     """管理员代客确认：pending_confirm → completed"""
     order = WorkOrder.query.get_or_404(order_id)
@@ -680,6 +683,7 @@ def admin_confirm_order(order_id):
 # ========== 故障库管理 ==========
 @bp.route('/admin/fault-categories', methods=['GET'])
 @login_required
+@permission_required('fault:view')
 def get_fault_categories():
     """后台获取所有故障分类（含已停用），附 fault_count"""
     keyword = request.args.get('keyword', '').strip()
@@ -736,6 +740,7 @@ def delete_fault_category(cat_id):
 
 @bp.route('/admin/faults', methods=['GET'])
 @login_required
+@permission_required('fault:view')
 def get_all_faults():
     keyword = request.args.get('keyword')
     cat_id = request.args.get('category_id', type=int)
@@ -801,6 +806,7 @@ def set_config(key):
 # ========== 工单列表（通用） ==========
 @bp.route('/admin/orders', methods=['GET'])
 @login_required
+@permission_required('order:view')
 def get_all_orders():
     status = request.args.get('status')
     keyword = request.args.get('keyword')
@@ -850,6 +856,7 @@ def get_all_orders():
 
 @bp.route('/admin/orders/<int:order_id>', methods=['GET'])
 @login_required
+@permission_required('order:view')
 def get_order_detail(order_id):
     order = WorkOrder.query.options(
         joinedload(WorkOrder.user),
@@ -939,6 +946,7 @@ def _coerce_csv_row(row):
 
 @bp.route('/admin/products', methods=['GET'])
 @login_required
+@permission_required('product:view')
 def admin_list_products():
     """产品库列表，支持关键词搜索 + 分页 + 绑定统计"""
     from app.models.product import UserProduct
@@ -992,6 +1000,7 @@ def admin_list_products():
 
 @bp.route('/admin/products/<int:product_id>/bindings', methods=['GET'])
 @login_required
+@permission_required('product:view')
 def admin_product_bindings(product_id):
     """单个产品的全部绑定用户列表（手机号 + 昵称 + 绑定时间 + 方式）"""
     from app.models.product import UserProduct
@@ -1019,6 +1028,7 @@ def admin_product_bindings(product_id):
 
 @bp.route('/admin/bindings', methods=['GET'])
 @login_required
+@permission_required('binding:view')
 def admin_list_bindings():
     """所有用户绑定记录列表（管理后台总览用）
        支持按 qr_code / phone / bind_method 过滤"""
@@ -1298,7 +1308,7 @@ def update_user_permissions(user_id):
     return jsonify({'message': '权限已更新', 'user_id': user_id, 'permissions': user.permissions})
 @bp.route('/dealer/orders/<int:order_id>/accept', methods=['POST'])
 @login_required
-@role_required('service_point', 'admin', 'dispatcher')
+@permission_required('dealer_order:assign_engineer')
 def dealer_accept_order(order_id):
     """经销商接单（dispatched → processing 一步完成）
 
@@ -1349,7 +1359,7 @@ def dealer_accept_order(order_id):
 
 @bp.route('/admin/dealer-orders', methods=['GET'])
 @login_required
-@role_required('admin', 'dispatcher', 'service_point', 'service_point_admin')
+@permission_required('dealer_order:view')
 def admin_dealer_orders():
     """总部视角：查看所有经销商（service_point）的工单售后
 
@@ -1495,7 +1505,7 @@ def update_role(role_id):
     # 更新权限（全量替换）
     if 'permission_ids' in data:
         # 先删后加
-        RoleRbacPermission.query.filter_by(role_id=role.id).delete()
+        RbacRolePermission.query.filter_by(role_id=role.id).delete()
         for pid in data['permission_ids']:
             if RbacRolePermission.query.get(pid):
                 db.session.add(RbacRolePermission(role_id=role.id, permission_id=pid))
