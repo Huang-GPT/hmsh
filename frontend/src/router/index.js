@@ -4,6 +4,7 @@ import Service from '@/views/Service.vue'
 import ProductBind from '@/views/ProductBind.vue'
 import ProductRepair from '@/views/ProductRepair.vue'
 import ProgressQuery from '@/views/ProgressQuery.vue'
+import ProgressDetail from '@/views/ProgressDetail.vue'
 import CommonFaults from '@/views/CommonFaults.vue'
 import Home from '@/views/Home.vue'
 import TerminalLogin from '@/views/Login.vue'
@@ -28,6 +29,7 @@ const routes = [
   { path: '/product/bind', name: 'ProductBind', component: ProductBind },
   { path: '/product/repair', name: 'ProductRepair', component: ProductRepair },
   { path: '/progress', name: 'ProgressQuery', component: ProgressQuery },
+  { path: '/progress/:id', name: 'ProgressDetail', component: ProgressDetail },
   { path: '/faults', name: 'CommonFaults', component: CommonFaults },
   { path: '/admin/login', name: 'AdminLogin', component: AdminLogin },
   { path: '/admin', component: AdminLayout, children: [
