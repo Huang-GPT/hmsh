@@ -49,8 +49,6 @@
         <van-cell v-if="order.product_serial" title="序列号" :value="order.product_serial" />
         <van-cell v-if="order.product_qr_code" title="产品码" :value="order.product_qr_code" />
         <van-cell v-if="order.product_sales_no" title="销售单号" :value="order.product_sales_no" />
-        <van-cell v-if="order.product_customer_name" title="客户名称" :value="order.product_customer_name" />
-        <van-cell v-if="order.product_dealer_name" title="经销商" :value="order.product_dealer_name" />
       </div>
 
       <!-- 故障信息 -->
@@ -90,14 +88,6 @@
         />
       </div>
 
-      <!-- 联系信息 -->
-      <div class="info-card">
-        <div class="card-title"><van-icon name="user-o" /> 联系信息</div>
-        <van-cell title="联系人" :value="order.contact_name || '—'" />
-        <van-cell title="联系电话" :value="order.contact_phone || '—'" />
-        <van-cell v-if="order.user_name" title="报修账号" :value="order.user_name" />
-      </div>
-
       <!-- 服务信息 -->
       <div class="info-card" v-if="order.service_point_name || order.engineer_name || order.assigned_engineer_name">
         <div class="card-title"><van-icon name="service-o" /> 服务信息</div>
@@ -107,33 +97,6 @@
           title="服务工程师"
           :value="(order.engineer_name || order.assigned_engineer_name) + (order.engineer_phone || order.assigned_engineer_phone ? ' ' + (order.engineer_phone || order.assigned_engineer_phone) : '')"
         />
-      </div>
-
-      <!-- 处理记录 -->
-      <div class="info-card" v-if="logs.length">
-        <div class="card-title"><van-icon name="records" /> 处理记录</div>
-        <div v-for="log in logs" :key="log.id" class="log-item" :class="log.from_status === log.to_status ? 'log-note' : 'log-status'">
-          <div class="log-meta">
-            <span class="log-time">{{ formatDate(log.created_at) }}</span>
-            <van-tag :type="log.from_status === log.to_status ? 'primary' : 'success'" size="mini">
-              {{ log.from_status === log.to_status ? '备注' : statusText[log.to_status] || log.to_status_cn || log.to_status }}
-            </van-tag>
-          </div>
-          <div class="log-op">{{ log.operator_name || '系统' }}</div>
-          <div v-if="log.remark" class="log-remark">{{ log.remark }}</div>
-          <div v-if="log.images && log.images.length" class="log-images">
-            <van-image
-              v-for="(img, i) in log.images"
-              :key="i"
-              :src="normalizeImageUrl(img)"
-              width="60"
-              height="60"
-              fit="cover"
-              radius="4"
-              @click="previewLogImage(log, i)"
-            />
-          </div>
-        </div>
       </div>
 
       <!-- 拒绝/取消原因 -->
