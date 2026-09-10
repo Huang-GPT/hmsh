@@ -152,6 +152,15 @@ def create_user():
         if f not in data:
             return jsonify({'error': f'缺少{f}'}), 400
 
+    # Bug 修复：role 必须落在 users.role 的 enum 白名单内 ——
+    # 之前没校验，前端送 role="" 或不在 enum 里的值，db.flush() 直接撞 MySQL 1265（Data truncated）返 500。
+    # 用 users.role 字段的 enum 类型做权威白名单，避免和 model 漂移。
+    valid_roles = [c.strip("'") for c in User.__table__.columns['role'].type.enums]
+    if data['role'] not in valid_roles:
+        return jsonify({
+            'error': f'无效角色：{data["role"]!r}，必须为 {valid_roles} 之一',
+        }), 400
+
     if User.query.filter_by(openid=data['account']).first():
         return jsonify({'error': '账号已存在'}), 400
 
@@ -205,7 +214,13 @@ def update_user(user_id):
     if 'department' in data: user.department = data['department']
     if 'remark' in data: user.remark = data['remark']
     if 'service_point_id' in data: user.service_point_id = data['service_point_id']
-    if 'role' in data and data['role'] in ['admin','dispatcher','service_point','engineer','operator','customer']:
+    if 'role' in data:
+        # 跟 create_user 保持同一份白名单，避免漏掉 service_point_admin
+        valid_roles = [c.strip("'") for c in User.__table__.columns['role'].type.enums]
+        if data['role'] not in valid_roles:
+            return jsonify({
+                'error': f'无效角色：{data["role"]!r}，必须为 {valid_roles} 之一',
+            }), 400
         if user.role != data['role']:
             role_changed = True
         user.role = data['role']
