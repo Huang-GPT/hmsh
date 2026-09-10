@@ -1,5 +1,7 @@
 import jwt
 import bcrypt
+import time
+import redis
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import request, jsonify, current_app, g
@@ -69,6 +71,9 @@ def decode_token(token):
         payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
         if TokenBlacklist.is_blacklisted(payload.get('jti')):
             return None
+        # P1.1: 主动撤销检查 — admin 改权限后立即让旧 token 失效
+        if _is_token_revoked(payload['user_id'], payload.get('iat')):
+            return None
         return payload
     except jwt.ExpiredSignatureError:
         return None
@@ -129,3 +134,98 @@ def refresh_token(token):
     from app import db
     db.session.commit()
     return generate_token(user)
+
+
+# ========== P1.1: JWT 主动撤销（Redis 版）==========
+# 当 admin 修改用户/角色权限时，让该用户的所有现存 JWT 立即失效。
+# 做法：在 Redis 记一个 revoked_user:{id} = 撤权时刻；
+#       decode_token 时若 token.iat < 撤权时刻则视为无效。
+# TTL 默认 = JWT_EXPIRY_HOURS * 3600（自然过期后无需保留）。
+# Redis 是临时存储，重启会丢 — 但 JWT 本2 2h 也就过期了，可接受。
+_redis_client = None
+
+def _get_redis():
+    """懒初始化 Redis 连接；复用 current_app 配置的 REDIS_URL"""
+    global _redis_client
+    if _redis_client is None:
+        url = current_app.config.get('REDIS_URL', 'redis://localhost:6379/0')
+        _redis_client = redis.from_url(url, decode_responses=True)
+    return _redis_client
+
+def _revoke_user_tokens(user_id, ttl_seconds=None):
+    """标记 user 的现存 token 全部失效。下次 decode_token 校验时拒绝。"""
+    if ttl_seconds is None:
+        ttl_seconds = current_app.config.get('JWT_EXPIRY_HOURS', 2) * 3600
+    _get_redis().set(f'revoked_user:{user_id}', int(time.time()), ex=ttl_seconds)
+
+def _revoke_role_tokens(role_id, ttl_seconds=None):
+    """角色权限/成员变化时：让该角色下所有现存用户的 token 失效。"""
+    from app.models.rbac import UserRole
+    for ur in UserRole.query.filter_by(role_id=role_id).all():
+        _revoke_user_tokens(ur.user_id, ttl_seconds)
+
+def _is_token_revoked(user_id, token_iat):
+    """检查 token 是否被主动撤销。token_iat 早于撤销时刻则视为无效。"""
+    if token_iat is None:
+        return False
+    revoked_at = _get_redis().get(f'revoked_user:{user_id}')
+    if revoked_at is None:
+        return False
+    try:
+        return int(token_iat) < int(revoked_at)
+    except (TypeError, ValueError):
+        return False
+
+
+# ========== P1.2: /auth/admin/login rate limit（Redis 计数器 + 锁定）==========
+# 防暴力破解：5 分钟内同 IP 连续失败 5 次 → 锁定 15 分钟。
+ADMIN_LOGIN_WINDOW_SEC = 300     # 失败计数滑动窗口
+ADMIN_LOGIN_MAX_FAILS = 5         # 窗口内允许的最大失败次数
+ADMIN_LOGIN_LOCK_SEC = 900        # 锁定时长
+
+def _check_admin_login_lock(ip):
+    """检查 IP 是否被锁定；True = 已被锁"""
+    return _get_redis().get(f'admin_login_lock:{ip}') is not None
+
+def _record_admin_login_failure(ip):
+    """记录一次失败；超过阈值则锁定。返回当前失败计数。"""
+    r = _get_redis()
+    fail_key = f'admin_login_fail:{ip}'
+    count = r.incr(fail_key)
+    if count == 1:
+        r.expire(fail_key, ADMIN_LOGIN_WINDOW_SEC)
+    if count >= ADMIN_LOGIN_MAX_FAILS:
+        r.set(f'admin_login_lock:{ip}', '1', ex=ADMIN_LOGIN_LOCK_SEC)
+        r.delete(fail_key)
+        return count
+    return count
+
+def _clear_admin_login_failures(ip):
+    """登录成功时清空失败计数"""
+    _get_redis().delete(f'admin_login_fail:{ip}')
+
+
+def admin_login_rate_limit(f):
+    """装饰器：套在登录视图上 — 锁定检查 + 失败计数 + 锁定触发。
+       视图返回 (response, status) 或 response object，本装饰器按 status 判断成败。
+    """
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        ip = request.remote_addr or 'unknown'
+        # 1) 已锁定 → 直接 429
+        if _check_admin_login_lock(ip):
+            return jsonify({'error': '登录尝试过多，请稍后再试'}), 429
+        # 2) 调登录视图本身
+        result = f(*args, **kwargs)
+        # 3) 判 status
+        if isinstance(result, tuple):
+            status = result[1]
+        else:
+            status = getattr(result, 'status_code', 200)
+        # 4) 失败计数 / 成功清零
+        if status and int(status) >= 400:
+            _record_admin_login_failure(ip)
+        elif status and int(status) == 200:
+            _clear_admin_login_failures(ip)
+        return result
+    return wrapped

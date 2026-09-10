@@ -1,10 +1,11 @@
 from flask import request, jsonify, g, make_response
 from app.api import bp
 from app import db
-from app.services.auth_service import hash_password, check_password, generate_token, login_required, refresh_token
+from app.services.auth_service import hash_password, check_password, generate_token, login_required, refresh_token, admin_login_rate_limit
 from app.models.user import User
 
 @bp.route('/auth/admin/login', methods=['POST'])
+@admin_login_rate_limit
 def admin_login():
     data = request.get_json()
     account = data.get('account')

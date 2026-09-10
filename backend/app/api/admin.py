@@ -1,7 +1,7 @@
 from flask import request, jsonify, g, Response
 from sqlalchemy.orm import joinedload
 from app.api import bp
-from app.services.auth_service import login_required, role_required, permission_required, hash_password
+from app.services.auth_service import login_required, role_required, permission_required, hash_password, _revoke_user_tokens, _revoke_role_tokens
 from app.models.user import User
 from app.models.service_point import ServicePoint, Engineer
 from app.models.work_order import OrderStatusLog, WorkOrder
@@ -197,6 +197,7 @@ def update_user(user_id):
     """编辑用户（含 email/real_name/department/remark）"""
     user = User.query.get_or_404(user_id)
     data = request.get_json() or {}
+    role_changed = False
     if 'nickname' in data: user.nickname = data['nickname']
     if 'phone' in data: user.phone = data['phone']
     if 'email' in data: user.email = data['email']
@@ -205,8 +206,13 @@ def update_user(user_id):
     if 'remark' in data: user.remark = data['remark']
     if 'service_point_id' in data: user.service_point_id = data['service_point_id']
     if 'role' in data and data['role'] in ['admin','dispatcher','service_point','engineer','operator','customer']:
+        if user.role != data['role']:
+            role_changed = True
         user.role = data['role']
     db.session.commit()
+    # P1.1: 角色变了 → 旧 token 里 RBAC 权限都过期，立刻撤销
+    if role_changed:
+        _revoke_user_tokens(user.id)
     return jsonify({'message': '更新成功', 'user': user.to_dict()})
 
 @bp.route('/admin/users/<int:user_id>/status', methods=['PUT'])
@@ -215,8 +221,12 @@ def update_user(user_id):
 @role_required('admin')
 def toggle_user_status(user_id):
     user = User.query.get_or_404(user_id)
+    was_active = user.status == 'active'
     user.status = 'disabled' if user.status == 'active' else 'active'
     db.session.commit()
+    # P1.1: 停用账号时立刻撤销其 token；启用时不撤销（其 token 已自然过期或被 Redis 记录）
+    if was_active and user.status == 'disabled':
+        _revoke_user_tokens(user.id)
     return jsonify({'message': 'ok', 'status': user.status})
 
 @bp.route('/admin/users/<int:user_id>', methods=['DELETE'])
@@ -1491,6 +1501,10 @@ def update_role_permissions(role):
     else:
         rp = LegacyRolePermission(role=role, permissions=permissions); db.session.add(rp)
     db.session.commit()
+    # P1.1: LegacyRolePermission（按 role 字段）变更 → 该 role 名下所有现存用户 token 撤销
+    from app.models.user import User as _User
+    for u in _User.query.filter_by(role=role, status='active').all():
+        _revoke_user_tokens(u.id)
     return jsonify({'message': '权限已更新', 'role': role, 'permissions': permissions})
 
 @bp.route('/admin/users/<int:user_id>/permissions', methods=['PUT'])
@@ -1501,6 +1515,8 @@ def update_user_permissions(user_id):
     user = User.query.get_or_404(user_id)
     user.permissions = request.get_json().get('permissions', [])
     db.session.commit()
+    # P1.1: 用户级 permissions（旧字段）变更 → 撤销其 token
+    _revoke_user_tokens(user.id)
     return jsonify({'message': '权限已更新', 'user_id': user_id, 'permissions': user.permissions})
 @bp.route('/dealer/orders/<int:order_id>/accept', methods=['POST'])
 @login_required
@@ -1693,6 +1709,7 @@ def update_role(role_id):
     """更新角色（含权限）"""
     role = RbacRole.query.get_or_404(role_id)
     data = request.get_json() or {}
+    perms_changed = False
 
     if 'name' in data:
         role.name = data['name']
@@ -1710,8 +1727,12 @@ def update_role(role_id):
         for pid in data['permission_ids']:
             if RbacRolePermission.query.get(pid):
                 db.session.add(RbacRolePermission(role_id=role.id, permission_id=pid))
+        perms_changed = True
 
     db.session.commit()
+    # P1.1: 角色权限改了 → 该角色下所有用户的 token 立即失效
+    if perms_changed:
+        _revoke_role_tokens(role.id)
     return jsonify({'message': '角色更新成功', 'role': role.to_dict(include_permissions=True)})
 
 
@@ -1727,6 +1748,8 @@ def delete_role(role_id):
     # 检查是否还有用户绑定
     if role.user_roles.count() > 0:
         return jsonify({'error': f'还有 {role.user_roles.count()} 个用户绑定此角色，请先解绑'}), 400
+    # P1.1: 删除角色前，撤销当前还绑着此角色的用户 token（防止删除后旧 token 仍能解出旧权限）
+    _revoke_role_tokens(role.id)
     db.session.delete(role)
     db.session.commit()
     return jsonify({'message': '角色已删除', 'id': role_id})
@@ -1771,6 +1794,8 @@ def set_user_roles(user_id):
             user.role = first_role.code if first_role.code in ['admin','dispatcher','service_point','engineer','operator','customer'] else user.role
 
     db.session.commit()
+    # P1.1: 用户角色绑定变化 → JWT 里的 RBAC 权限集已过期，立刻撤销
+    _revoke_user_tokens(user.id)
     return jsonify({
         'message': '角色分配成功',
         'user_id': user_id,
