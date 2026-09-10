@@ -23,10 +23,10 @@
       </div>
 
       <div class="toolbar-row toolbar-bottom">
-        <van-button size="small" type="primary" icon="plus" @click="openCreate">新建产品</van-button>
+        <van-button v-if="$hasPermission('product:create')" size="small" type="primary" icon="plus" @click="openCreate">新建产品</van-button>
         <van-button size="small" plain icon="down" @click="downloadTemplate">下载模板</van-button>
-        <van-button size="small" plain icon="description" @click="triggerImport">导入CSV</van-button>
-        <van-button size="small" plain icon="up" @click="exportCSV">导出CSV</van-button>
+        <van-button v-if="$hasPermission('product:create')" size="small" plain icon="description" @click="triggerImport">导入CSV</van-button>
+        <van-button v-if="$hasPermission('product:view')" size="small" plain icon="up" @click="exportCSV">导出CSV</van-button>
         <van-button size="small" plain icon="replay" @click="loadProducts()">刷新</van-button>
         <input ref="fileInput" type="file" accept=".csv" style="display:none" @change="onImportFile" />
         <a class="format-help" @click="showFormat = true">📋 导入格式说明</a>
@@ -36,7 +36,7 @@
       <transition name="fade">
         <div v-if="selectedIds.length > 0" class="bulk-bar">
           <span class="bulk-info">已选 <strong>{{ selectedIds.length }}</strong> 项</span>
-          <van-button size="mini" type="danger" plain @click="bulkDelete">批量删除</van-button>
+          <van-button v-if="$hasPermission('product:delete')" size="mini" type="danger" plain @click="bulkDelete">批量删除</van-button>
           <van-button size="mini" plain @click="clearSelection">取消选择</van-button>
         </div>
       </transition>
@@ -132,13 +132,13 @@
             </td>
             <td class="col-actions sticky-right">
               <a class="op-link" @click="previewProduct(p)">查看</a>
-              <a class="op-link primary" @click="editProduct(p)">编辑</a>
+              <a v-if="$hasPermission('product:edit')" class="op-link primary" @click="editProduct(p)">编辑</a>
               <a
                 v-if="(p.bound_count || 0) > 0"
                 class="op-link warn"
                 @click="openBindings(p)"
               >绑定({{ p.bound_count }})</a>
-              <a class="op-link danger" @click="removeProduct(p)">删除</a>
+              <a v-if="$hasPermission('product:delete')" class="op-link danger" @click="removeProduct(p)">删除</a>
             </td>
           </tr>
         </tbody>

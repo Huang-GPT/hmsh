@@ -26,7 +26,7 @@
           @click="setStatusFilter(f.value)"
         >{{ f.label }}</span>
         <van-button size="small" plain icon="replay" @click="loadUsers()">刷新</van-button>
-        <van-button size="small" type="primary" icon="plus" @click="openCreate">新增用户</van-button>
+        <van-button v-if="$hasPermission('user:create')" size="small" type="primary" icon="plus" @click="openCreate">新增用户</van-button>
       </div>
     </div>
 
@@ -90,13 +90,13 @@
               <div class="row-meta">{{ formatTime(u.created_at) }}</div>
             </td>
             <td class="col-actions" @click.stop>
-              <a class="op-link primary" @click="openEdit(u)">编辑</a>
-              <a class="op-link" @click="openAssignRoles(u)">分配角色</a>
-              <a class="op-link warning" @click="doResetPwd(u)">重置密码</a>
-              <a class="op-link" :class="u.status === 'active' ? 'danger' : 'success'" @click="doToggle(u)">
+              <a v-if="$hasPermission('user:edit')" class="op-link primary" @click="openEdit(u)">编辑</a>
+              <a v-if="$hasPermission('role:assign')" class="op-link" @click="openAssignRoles(u)">分配角色</a>
+              <a v-if="$hasPermission('user:reset_password')" class="op-link warning" @click="doResetPwd(u)">重置密码</a>
+              <a v-if="$hasPermission('user:toggle_status')" class="op-link" :class="u.status === 'active' ? 'danger' : 'success'" @click="doToggle(u)">
                 {{ u.status === 'active' ? '停用' : '启用' }}
               </a>
-              <a class="op-link danger" @click="doDelete(u)">删除</a>
+              <a v-if="$hasPermission('user:delete')" class="op-link danger" @click="doDelete(u)">删除</a>
             </td>
           </tr>
         </tbody>

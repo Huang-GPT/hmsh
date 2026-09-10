@@ -12,7 +12,7 @@
             @search="loadCategories"
             shape="round"
           />
-          <van-button type="primary" size="small" icon="plus" @click="openCatCreate">新建分类</van-button>
+          <van-button v-if="$hasPermission('fault:create')" type="primary" size="small" icon="plus" @click="openCatCreate">新建分类</van-button>
         </div>
 
         <div v-if="categories.length === 0" class="empty-tip">
@@ -30,8 +30,8 @@
             </template>
             <template #right-icon>
               <van-tag v-if="cat.status === 'disabled'" type="danger" size="mini" class="mr-1">已停用</van-tag>
-              <van-button size="mini" plain class="mr-1" @click="openCatEdit(cat)">编辑</van-button>
-              <van-button size="mini" type="danger" plain @click="confirmCatDelete(cat)">停用</van-button>
+              <van-button v-if="$hasPermission('fault:edit')" size="mini" plain class="mr-1" @click="openCatEdit(cat)">编辑</van-button>
+              <van-button v-if="$hasPermission('fault:delete')" size="mini" type="danger" plain @click="confirmCatDelete(cat)">停用</van-button>
             </template>
           </van-cell>
         </van-cell-group>
@@ -45,7 +45,7 @@
             @search="loadFaults"
             shape="round"
           />
-          <van-button type="primary" size="small" icon="plus" @click="openFaultCreate">新建故障</van-button>
+          <van-button v-if="$hasPermission('fault:create')" type="primary" size="small" icon="plus" @click="openFaultCreate">新建故障</van-button>
         </div>
 
         <van-cell-group class="fault-list">
@@ -59,7 +59,7 @@
           >
             <template #right-icon>
               <van-tag v-if="f.status === 'disabled'" type="danger" size="mini" class="mr-1">已停用</van-tag>
-              <van-button size="mini" type="danger" plain @click.stop="confirmFaultDelete(f)">停用</van-button>
+              <van-button v-if="$hasPermission('fault:delete')" size="mini" type="danger" plain @click.stop="confirmFaultDelete(f)">停用</van-button>
             </template>
           </van-cell>
         </van-cell-group>

@@ -15,8 +15,8 @@
       </div>
       <div class="toolbar-row toolbar-bottom">
         <van-button size="small" plain icon="replay" @click="loadRoles()">刷新</van-button>
-        <van-button size="small" type="primary" icon="plus" @click="openCreate">新增角色</van-button>
-        <van-button size="small" plain icon="cluster-o" @click="showPermissions = true">查看权限库（{{ permissions.length }}）</van-button>
+        <van-button v-if="$hasPermission('role:create')" size="small" type="primary" icon="plus" @click="openCreate">新增角色</van-button>
+        <van-button v-if="$hasPermission('role:view')" size="small" plain icon="cluster-o" @click="showPermissions = true">查看权限库（{{ permissions.length }}）</van-button>
       </div>
     </div>
 
@@ -66,9 +66,9 @@
             </td>
             <td class="col-time">{{ formatDateTime(r.updated_at) }}</td>
             <td class="col-actions" @click.stop>
-              <a class="op-link primary" @click="openEdit(r)">编辑</a>
-              <a class="op-link" @click="showRolePerms(r)">权限</a>
-              <a v-if="!r.builtin" class="op-link danger" @click="doDelete(r)">删除</a>
+              <a v-if="$hasPermission('role:edit')" class="op-link primary" @click="openEdit(r)">编辑</a>
+              <a v-if="$hasPermission('role:view')" class="op-link" @click="showRolePerms(r)">权限</a>
+              <a v-if="!r.builtin && $hasPermission('role:delete')" class="op-link danger" @click="doDelete(r)">删除</a>
             </td>
           </tr>
         </tbody>

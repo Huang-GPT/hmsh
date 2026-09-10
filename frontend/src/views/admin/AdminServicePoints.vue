@@ -20,9 +20,9 @@
           @click="setStatusFilter(f.value)"
         >{{ f.label }}</span>
         <van-button size="small" plain icon="replay" @click="loadData(true)">刷新</van-button>
-        <van-button size="small" type="primary" icon="plus" @click="openCreate">新增服务点</van-button>
-        <van-button size="small" plain icon="down" @click="onExport">导出CSV</van-button>
-        <van-button size="small" plain icon="upgrade" @click="showImportDialog = true">导入CSV</van-button>
+        <van-button v-if="$hasPermission('service_point:create')" size="small" type="primary" icon="plus" @click="openCreate">新增服务点</van-button>
+        <van-button v-if="$hasPermission('service_point:view')" size="small" plain icon="down" @click="onExport">导出CSV</van-button>
+        <van-button v-if="$hasPermission('service_point:create')" size="small" plain icon="upgrade" @click="showImportDialog = true">导入CSV</van-button>
       </div>
     </div>
 
@@ -67,9 +67,9 @@
             </td>
             <td class="col-time">{{ formatDate(row.created_at) }}</td>
             <td class="col-actions" @click.stop>
-              <a class="op-link primary" @click="openEdit(row)">编辑</a>
-              <a v-if="row.status === 'active'" class="op-link warning" @click="onDisable(row)">停用</a>
-              <a v-else class="op-link success" @click="onRestore(row)">启用</a>
+              <a v-if="$hasPermission('service_point:edit')" class="op-link primary" @click="openEdit(row)">编辑</a>
+              <a v-if="row.status === 'active' && $hasPermission('service_point:edit')" class="op-link warning" @click="onDisable(row)">停用</a>
+              <a v-else-if="$hasPermission('service_point:edit')" class="op-link success" @click="onRestore(row)">启用</a>
               <a class="op-link danger" @click="onHardDelete(row)">删除</a>
             </td>
           </tr>

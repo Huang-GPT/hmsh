@@ -33,7 +33,7 @@
         <div class='row'><span class='k'>地址</span><span class='v'>{{ currentOrder.fault_address }}</span></div>
         <div class='row'><span class='k'>预约时间</span><span class='v'>{{ currentOrder.appointment_date }} {{ currentOrder.appointment_period }}</span></div>
         <div class='row' v-if='currentOrder.assigned_engineer_name'><span class='k'>工程师</span><span class='v'>{{ currentOrder.assigned_engineer_name }} {{ currentOrder.assigned_engineer_phone }}</span></div>
-        <div class='action-btns' v-if="currentOrder.status === 'processing' || currentOrder.status === 'pending_confirm'">
+        <div class='action-btns' v-if="(currentOrder.status === 'processing' || currentOrder.status === 'pending_confirm') && $hasPermission('order:complete')">
           <van-button type='success' block @click='confirmComplete'>标记完成</van-button>
         </div>
       </div>

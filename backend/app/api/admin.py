@@ -4,7 +4,7 @@ from app.api import bp
 from app.services.auth_service import login_required, role_required, permission_required, hash_password
 from app.models.user import User
 from app.models.service_point import ServicePoint, Engineer
-from app.models.work_order import WorkOrder
+from app.models.work_order import OrderStatusLog, WorkOrder
 from app.models.common_fault import FaultCategory, CommonFault
 from app.models.product import Product
 from app.models.system import SystemConfig, LegacyRolePermission
@@ -13,6 +13,98 @@ from app import db
 import csv
 import io
 from datetime import datetime
+
+SAFE_REOPEN_STATUSES = (
+    'pending_accept',
+    'pending_dispatch',
+    'dispatched',
+    'assigned_engineer',
+    'processing',
+    'pending_confirm',
+    'completed',
+)
+
+
+def _has_valid_text_engineer(order):
+    name = (order.assigned_engineer_name or '').strip()
+    phone = (order.assigned_engineer_phone or '').strip()
+    return bool(name) and phone.isdigit() and len(phone) >= 7
+
+
+def _build_reopen_state(order):
+    logs = (
+        OrderStatusLog.query
+        .filter_by(order_id=order.id)
+        .order_by(OrderStatusLog.created_at.asc(), OrderStatusLog.id.asc())
+        .all()
+    )
+    history = []
+    seen = set()
+    for log in logs:
+        for status in (log.from_status, log.to_status):
+            if status in SAFE_REOPEN_STATUSES and status not in seen:
+                history.append(status)
+                seen.add(status)
+
+    eligible = ['pending_accept']
+    for status in SAFE_REOPEN_STATUSES[1:]:
+        if status not in seen:
+            continue
+        if status == 'dispatched' and not order.service_point_id:
+            continue
+        if status in ('assigned_engineer', 'processing'):
+            if not order.engineer_id and not _has_valid_text_engineer(order):
+                continue
+        eligible.append(status)
+
+    eligible_set = set(eligible)
+    recommended = None
+    for log in reversed(logs):
+        if log.to_status == 'closed' and log.from_status in eligible_set:
+            recommended = log.from_status
+            break
+    if not recommended:
+        for log in reversed(logs):
+            for status in (log.to_status, log.from_status):
+                if status in eligible_set:
+                    recommended = status
+                    break
+            if recommended:
+                break
+    if not recommended:
+        recommended = 'pending_accept'
+
+    ordered = [recommended] + [
+        status for status in eligible if status != recommended
+    ]
+    return {
+        'recommended_status': recommended,
+        'options': [
+            {
+                'value': status,
+                'label': WorkOrder.STATUS_CN.get(status, status),
+                'recommended': status == recommended,
+            }
+            for status in ordered
+        ],
+    }
+
+
+def _order_not_closed_response():
+    return jsonify({
+        'code': 'ORDER_NOT_CLOSED',
+        'error': '工单当前不是已关闭状态',
+    }), 409
+
+
+def _current_operator_name():
+    nickname = getattr(g, 'current_user_nickname', None)
+    if nickname:
+        return nickname
+    user = User.query.get(g.current_user_id)
+    if user and user.nickname:
+        return user.nickname
+    return f'用户#{g.current_user_id}'
 
 # ========== 工作台统计 ==========
 @bp.route('/admin/dashboard', methods=['GET'])
@@ -39,6 +131,7 @@ def dashboard():
 # ========== 用户管理 ==========
 @bp.route('/admin/users', methods=['GET'])
 @login_required
+@permission_required('user:view')
 @role_required('admin')
 def get_users():
     role = request.args.get('role')
@@ -50,6 +143,7 @@ def get_users():
 
 @bp.route('/admin/users', methods=['POST'])
 @login_required
+@permission_required('user:create')
 @role_required('admin')
 def create_user():
     data = request.get_json()
@@ -97,6 +191,7 @@ def create_user():
 
 @bp.route('/admin/users/<int:user_id>', methods=['PUT'])
 @login_required
+@permission_required('user:edit')
 @role_required('admin')
 def update_user(user_id):
     """编辑用户（含 email/real_name/department/remark）"""
@@ -116,6 +211,7 @@ def update_user(user_id):
 
 @bp.route('/admin/users/<int:user_id>/status', methods=['PUT'])
 @login_required
+@permission_required('user:toggle_status')
 @role_required('admin')
 def toggle_user_status(user_id):
     user = User.query.get_or_404(user_id)
@@ -125,6 +221,7 @@ def toggle_user_status(user_id):
 
 @bp.route('/admin/users/<int:user_id>', methods=['DELETE'])
 @login_required
+@permission_required('user:delete')
 @role_required('admin')
 def delete_user(user_id):
     """硬删除用户 — 业务校验：
@@ -159,6 +256,7 @@ def delete_user(user_id):
 
 @bp.route('/admin/users/<int:user_id>/reset-password', methods=['POST'])
 @login_required
+@permission_required('user:reset_password')
 @role_required('admin')
 def reset_password(user_id):
     user = User.query.get_or_404(user_id)
@@ -178,6 +276,7 @@ def get_service_points():
 
 @bp.route('/admin/service-points', methods=['POST'])
 @login_required
+@permission_required('service_point:create')
 @role_required('admin')
 def create_service_point():
     data = request.get_json()
@@ -194,6 +293,7 @@ def create_service_point():
 
 @bp.route('/admin/service-points/<int:sp_id>', methods=['PUT'])
 @login_required
+@permission_required('service_point:edit')
 @role_required('admin')
 def update_service_point(sp_id):
     sp = ServicePoint.query.get_or_404(sp_id)
@@ -206,6 +306,7 @@ def update_service_point(sp_id):
 
 @bp.route('/admin/service-points/<int:sp_id>', methods=['DELETE'])
 @login_required
+@permission_required('service_point:edit')
 @role_required('admin')
 def delete_service_point(sp_id):
     sp = ServicePoint.query.get_or_404(sp_id)
@@ -217,6 +318,7 @@ def delete_service_point(sp_id):
 # ========== 服务点维护（admin 增强） ==========
 @bp.route('/admin/service-points/all', methods=['GET'])
 @login_required
+@permission_required('service_point:view')
 @role_required('admin')
 def list_all_service_points():
     """维护页：含禁用，全量返回"""
@@ -253,6 +355,7 @@ def hard_delete_service_point(sp_id):
 
 @bp.route('/admin/service-points/import', methods=['POST'])
 @login_required
+@permission_required('service_point:create')
 @role_required('admin')
 def import_service_points():
     """CSV 导入：列顺序 名称,联系人,联系电话,地区,地址
@@ -326,6 +429,7 @@ def import_service_points():
 
 @bp.route('/admin/service-points/export', methods=['GET'])
 @login_required
+@permission_required('service_point:view')
 @role_required('admin')
 def export_service_points():
     """导出 CSV：列 名称,联系人,联系电话,地区,地址,状态"""
@@ -365,6 +469,7 @@ def get_engineers():
 
 @bp.route('/admin/engineers', methods=['POST'])
 @login_required
+@permission_required('service_point:edit')
 @role_required('admin','service_point')
 def create_engineer():
     data = request.get_json()
@@ -380,6 +485,7 @@ def create_engineer():
 
 @bp.route('/admin/engineers/<int:e_id>', methods=['PUT'])
 @login_required
+@permission_required('service_point:edit')
 @role_required('admin','service_point')
 def update_engineer(e_id):
     e = Engineer.query.get_or_404(e_id)
@@ -392,6 +498,7 @@ def update_engineer(e_id):
 
 @bp.route('/admin/engineers/<int:e_id>', methods=['DELETE'])
 @login_required
+@permission_required('service_point:edit')
 @role_required('admin')
 def delete_engineer(e_id):
     e = Engineer.query.get_or_404(e_id)
@@ -459,17 +566,88 @@ def reject_order(order_id):
     order = WorkOrder.query.get_or_404(order_id)
     if order.status not in ['pending_dispatch','pending_accept']:
         return jsonify({'error': '当前状态不能拒绝'}), 400
-    data = request.get_json()
+    data = request.get_json() or {}
     reason = data.get('reason', '')
+    previous_status = order.status
     order.status = 'closed'
     order.reject_reason = reason
 
-    from app.models.work_order import OrderStatusLog
-    log = OrderStatusLog(order_id=order.id, from_status=order.status, to_status='closed',
-                         operator_id=g.current_user_id, operator_name=g.current_user_nickname, remark=f'拒绝: {reason}')
+    log = OrderStatusLog(
+        order_id=order.id,
+        from_status=previous_status,
+        to_status='closed',
+        operator_id=g.current_user_id,
+        operator_name=g.current_user_nickname,
+        remark=f'拒绝: {reason}',
+    )
     db.session.add(log)
     db.session.commit()
     return jsonify({'message': '已关闭', 'order': order.to_dict()})
+
+
+@bp.route('/admin/orders/<int:order_id>/reopen-options', methods=['GET'])
+@login_required
+@permission_required('order:reopen')
+def get_reopen_options(order_id):
+    order = WorkOrder.query.get_or_404(order_id)
+    if order.status != 'closed':
+        return _order_not_closed_response()
+    state = _build_reopen_state(order)
+    return jsonify({
+        'order_id': order.id,
+        'order_no': order.order_no,
+        'current_status': order.status,
+        'recommended_status': state['recommended_status'],
+        'options': state['options'],
+    })
+
+
+@bp.route('/admin/orders/<int:order_id>/reopen', methods=['POST'])
+@login_required
+@permission_required('order:reopen')
+def reopen_order(order_id):
+    data = request.get_json() or {}
+    target_status = (data.get('target_status') or '').strip()
+    reason = (data.get('reason') or '').strip()
+    if not reason:
+        return jsonify({'error': '恢复原因不能为空'}), 400
+    if len(reason) > 500:
+        return jsonify({'error': '恢复原因不能超过 500 个字符'}), 400
+    if not target_status:
+        return jsonify({'error': '目标状态不能为空'}), 400
+
+    order = (
+        WorkOrder.query
+        .filter(WorkOrder.id == order_id)
+        .with_for_update()
+        .first()
+    )
+    if not order:
+        return jsonify({'error': '工单不存在'}), 404
+    if order.status != 'closed':
+        return _order_not_closed_response()
+
+    state = _build_reopen_state(order)
+    allowed = {item['value'] for item in state['options']}
+    if target_status not in allowed:
+        return jsonify({'error': '目标状态不在允许的安全选项中'}), 400
+
+    order.status = target_status
+    log = OrderStatusLog(
+        order_id=order.id,
+        from_status='closed',
+        to_status=target_status,
+        operator_id=g.current_user_id,
+        operator_name=_current_operator_name(),
+        remark='取消关闭：' + reason,
+    )
+    db.session.add(log)
+    db.session.commit()
+    return jsonify({
+        'message': '已取消关闭',
+        'order': order.to_dict(),
+        'log': log.to_dict(),
+    })
 
 # ========== 撤销审核 ==========
 @bp.route('/admin/orders/pending-cancel', methods=['GET'])
@@ -592,6 +770,7 @@ def update_progress(order_id):
     return jsonify({'message': '进度已更新'})
 @bp.route('/admin/orders/<int:order_id>/note', methods=['POST'])
 @login_required
+@permission_required('order:edit')
 @role_required('admin','dispatcher','service_point','service_point_admin')
 def add_order_note(order_id):
     """添加备注意见：不改工单状态，仅在处理记录里追加一条 entry"""
@@ -639,6 +818,7 @@ def complete_order(order_id):
 # ========== 经销商文本分配工程师 ==========
 @bp.route('/admin/orders/<int:order_id>/assign-engineer-text', methods=['POST'])
 @login_required
+@permission_required('order:assign_engineer')
 @role_required('service_point','admin','dispatcher')
 def assign_engineer_text(order_id):
     order = WorkOrder.query.get_or_404(order_id)
@@ -709,6 +889,7 @@ def get_fault_categories():
 
 @bp.route('/admin/fault-categories', methods=['POST'])
 @login_required
+@permission_required('fault:create')
 @role_required('admin','operator')
 def create_fault_category():
     data = request.get_json()
@@ -719,6 +900,7 @@ def create_fault_category():
 
 @bp.route('/admin/fault-categories/<int:cat_id>', methods=['PUT'])
 @login_required
+@permission_required('fault:edit')
 @role_required('admin','operator')
 def update_fault_category(cat_id):
     cat = FaultCategory.query.get_or_404(cat_id)
@@ -731,6 +913,7 @@ def update_fault_category(cat_id):
 
 @bp.route('/admin/fault-categories/<int:cat_id>', methods=['DELETE'])
 @login_required
+@permission_required('fault:delete')
 @role_required('admin','operator')
 def delete_fault_category(cat_id):
     cat = FaultCategory.query.get_or_404(cat_id)
@@ -754,6 +937,7 @@ def get_all_faults():
 
 @bp.route('/admin/faults', methods=['POST'])
 @login_required
+@permission_required('fault:create')
 @role_required('admin','operator')
 def create_fault():
     data = request.get_json()
@@ -768,6 +952,7 @@ def create_fault():
 
 @bp.route('/admin/faults/<int:fault_id>', methods=['PUT'])
 @login_required
+@permission_required('fault:edit')
 @role_required('admin','operator')
 def update_fault(fault_id):
     fault = CommonFault.query.get_or_404(fault_id)
@@ -780,6 +965,7 @@ def update_fault(fault_id):
 
 @bp.route('/admin/faults/<int:fault_id>', methods=['DELETE'])
 @login_required
+@permission_required('fault:delete')
 @role_required('admin','operator')
 def delete_fault(fault_id):
     fault = CommonFault.query.get_or_404(fault_id)
@@ -790,6 +976,7 @@ def delete_fault(fault_id):
 # ========== 系统配置 ==========
 @bp.route('/admin/config/<key>', methods=['GET'])
 @login_required
+@permission_required('system:config')
 @role_required('admin')
 def get_config(key):
     val = SystemConfig.get_value(key)
@@ -797,6 +984,7 @@ def get_config(key):
 
 @bp.route('/admin/config/<key>', methods=['PUT'])
 @login_required
+@permission_required('system:config')
 @role_required('admin')
 def set_config(key):
     data = request.get_json()
@@ -1086,6 +1274,7 @@ def admin_list_bindings():
 
 @bp.route('/admin/products', methods=['POST'])
 @login_required
+@permission_required('product:create')
 @role_required('admin', 'operator')
 def admin_create_product():
     """单条新建产品记录"""
@@ -1139,6 +1328,7 @@ def admin_create_product():
 
 @bp.route('/admin/products/<int:product_id>', methods=['DELETE'])
 @login_required
+@permission_required('product:delete')
 @role_required('admin', 'operator')
 def admin_delete_product(product_id):
     """删除单条产品记录（同时解除用户绑定 UserProduct）"""
@@ -1152,6 +1342,7 @@ def admin_delete_product(product_id):
 
 @bp.route('/admin/products/<int:product_id>', methods=['PUT'])
 @login_required
+@permission_required('product:edit')
 @role_required('admin', 'operator')
 def admin_update_product(product_id):
     """更新产品字段"""
@@ -1182,6 +1373,7 @@ def admin_update_product(product_id):
 
 @bp.route('/admin/products/import', methods=['POST'])
 @login_required
+@permission_required('product:create')
 @role_required('admin', 'operator')
 def admin_import_products():
     """从 CSV 文件批量导入产品库。
@@ -1262,6 +1454,7 @@ def admin_import_products():
 
 @bp.route('/admin/bindings/<int:binding_id>', methods=['DELETE'])
 @login_required
+@permission_required('binding:edit')
 @role_required('admin', 'operator')
 def admin_unbind(binding_id):
     """管理员强制解绑单条用户绑定记录"""
@@ -1279,6 +1472,7 @@ def admin_unbind(binding_id):
 # ========== 角色权限管理 ==========
 @bp.route('/admin/role-permissions', methods=['GET'])
 @login_required
+@permission_required('role:view')
 @role_required('admin')
 def get_role_permissions():
     roles = LegacyRolePermission.query.all()
@@ -1286,6 +1480,7 @@ def get_role_permissions():
 
 @bp.route('/admin/role-permissions/<string:role>', methods=['PUT'])
 @login_required
+@permission_required('role:edit')
 @role_required('admin')
 def update_role_permissions(role):
     valid_roles = ['admin','dispatcher','service_point','engineer','operator','customer']
@@ -1300,6 +1495,7 @@ def update_role_permissions(role):
 
 @bp.route('/admin/users/<int:user_id>/permissions', methods=['PUT'])
 @login_required
+@permission_required('role:assign')
 @role_required('admin')
 def update_user_permissions(user_id):
     user = User.query.get_or_404(user_id)
@@ -1402,6 +1598,7 @@ def admin_dealer_orders():
 # ========== RBAC：权限管理 ==========
 @bp.route('/admin/permissions', methods=['GET'])
 @login_required
+@permission_required('role:view')
 @role_required('admin')
 def list_permissions():
     """列出所有权限（按 module 分组排序）"""
@@ -1438,6 +1635,7 @@ MODULE_LABELS = {
 
 @bp.route('/admin/roles', methods=['GET'])
 @login_required
+@permission_required('role:view')
 @role_required('admin')
 def list_roles():
     """列出所有角色（含 permission_ids）"""
@@ -1447,6 +1645,7 @@ def list_roles():
 
 @bp.route('/admin/roles/<int:role_id>', methods=['GET'])
 @login_required
+@permission_required('role:view')
 @role_required('admin')
 def get_role(role_id):
     """角色详情（含完整权限列表）"""
@@ -1456,6 +1655,7 @@ def get_role(role_id):
 
 @bp.route('/admin/roles', methods=['POST'])
 @login_required
+@permission_required('role:create')
 @role_required('admin')
 def create_role():
     """新建角色"""
@@ -1487,6 +1687,7 @@ def create_role():
 
 @bp.route('/admin/roles/<int:role_id>', methods=['PUT'])
 @login_required
+@permission_required('role:edit')
 @role_required('admin')
 def update_role(role_id):
     """更新角色（含权限）"""
@@ -1516,6 +1717,7 @@ def update_role(role_id):
 
 @bp.route('/admin/roles/<int:role_id>', methods=['DELETE'])
 @login_required
+@permission_required('role:delete')
 @role_required('admin')
 def delete_role(role_id):
     """删除角色（内置角色保护）"""
@@ -1533,6 +1735,7 @@ def delete_role(role_id):
 # ========== RBAC：用户角色分配 ==========
 @bp.route('/admin/users/<int:user_id>/roles', methods=['GET'])
 @login_required
+@permission_required('role:assign')
 @role_required('admin')
 def get_user_roles(user_id):
     """查用户的角色"""
@@ -1546,6 +1749,7 @@ def get_user_roles(user_id):
 
 @bp.route('/admin/users/<int:user_id>/roles', methods=['PUT'])
 @login_required
+@permission_required('role:assign')
 @role_required('admin')
 def set_user_roles(user_id):
     """设置用户的角色（全量替换）"""

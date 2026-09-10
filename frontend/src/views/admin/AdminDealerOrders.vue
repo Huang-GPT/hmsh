@@ -134,7 +134,7 @@
             </td>
             <td class="col-actions" @click.stop>
               <a class="op-link primary" @click="openDetail(o)">详情</a>
-              <a v-if="o.status === 'dispatched'" class="op-link success" @click="adminAccept(o)">代接单</a>
+              <a v-if="o.status === 'dispatched' && $hasPermission('dealer_order:accept_admin')" class="op-link success" @click="adminAccept(o)">代接单</a>
             </td>
           </tr>
         </tbody>
@@ -342,7 +342,7 @@
         </section>
 
         <!-- 操作按钮 -->
-        <div v-if="currentOrder.status === 'dispatched'" class="ds-action-bar">
+        <div v-if="currentOrder.status === 'dispatched' && $hasPermission('dealer_order:accept_admin')" class="ds-action-bar">
           <div class="ds-action-primary">
             <van-button type="success" block @click="adminAccept(currentOrder)">总部代接单</van-button>
           </div>
