@@ -146,56 +146,88 @@ def get_users():
 @permission_required('user:create')
 @role_required('admin')
 def create_user():
-    data = request.get_json()
+    from sqlalchemy.exc import IntegrityError
+    data = request.get_json() or {}
     required = ['account', 'nickname', 'role']
     for f in required:
         if f not in data:
             return jsonify({'error': f'缺少{f}'}), 400
 
+    def _none_if_blank(v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v = v.strip()
+            return v if v else None
+        return v
+
+    account = _none_if_blank(data.get('account'))
+    role = _none_if_blank(data.get('role'))
+    nickname = _none_if_blank(data.get('nickname'))
+    real_name = _none_if_blank(data.get('real_name'))
+    phone = _none_if_blank(data.get('phone'))
+    email = _none_if_blank(data.get('email'))
+    department = _none_if_blank(data.get('department'))
+    remark = _none_if_blank(data.get('remark'))
+    if not account:
+        return jsonify({'error': '缺少account'}), 400
+    if not role:
+        return jsonify({'error': '缺少role'}), 400
+    if not nickname and not real_name:
+        return jsonify({'error': '请填写姓名或昵称'}), 400
+    if not nickname:
+        nickname = real_name if real_name else account
+
     # Bug 修复：role 必须落在 users.role 的 enum 白名单内 ——
     # 之前没校验，前端送 role="" 或不在 enum 里的值，db.flush() 直接撞 MySQL 1265（Data truncated）返 500。
     # 用 users.role 字段的 enum 类型做权威白名单，避免和 model 漂移。
     valid_roles = [c.strip("'") for c in User.__table__.columns['role'].type.enums]
-    if data['role'] not in valid_roles:
+    if role not in valid_roles:
         return jsonify({
-            'error': f'无效角色：{data["role"]!r}，必须为 {valid_roles} 之一',
+            'error': f'无效角色：{role!r}，必须为 {valid_roles} 之一',
         }), 400
 
-    if User.query.filter_by(openid=data['account']).first():
+    if User.query.filter_by(openid=account).first():
         return jsonify({'error': '账号已存在'}), 400
+    if phone and User.query.filter_by(phone=phone).first():
+        return jsonify({'error': '手机号已存在'}), 400
 
     # 校验 service_point_id 必须存在
     sp_id = data.get('service_point_id')
     if sp_id is not None and not ServicePoint.query.get(sp_id):
         return jsonify({'error': '服务点不存在'}), 400
 
-    init_password = data.get('password', '123456')
+    init_password = data.get('password', '123456') or '123456'
     user = User(
-        openid=data['account'],
-        nickname=data['nickname'],
-        role=data['role'],
-        phone=data.get('phone'),
+        openid=account,
+        nickname=nickname,
+        role=role,
+        phone=phone,
         password_hash=hash_password(init_password),
         service_point_id=sp_id,
-        email=data.get('email'),
-        real_name=data.get('real_name'),
-        department=data.get('department'),
-        remark=data.get('remark'),
+        email=email,
+        real_name=real_name,
+        department=department,
+        remark=remark,
         status='active',
     )
-    db.session.add(user)
-    db.session.flush()
-    # 自动按 role 绑同名 RBAC 角色（找不到不阻断）
-    rbac_role = RbacRole.query.filter_by(code=data['role']).first()
-    if rbac_role:
-        db.session.add(RbacUserRole(user_id=user.id, role_id=rbac_role.id))
-    # 也支持直接传 rbac_role_ids（多角色）
-    for rid in (data.get('rbac_role_ids') or []):
-        if rid == (rbac_role.id if rbac_role else None):
-            continue
-        if RbacRole.query.get(rid):
-            db.session.add(RbacUserRole(user_id=user.id, role_id=rid))
-    db.session.commit()
+    try:
+        db.session.add(user)
+        db.session.flush()
+        # 自动按 role 绑同名 RBAC 角色（找不到不阻断）
+        rbac_role = RbacRole.query.filter_by(code=role).first()
+        if rbac_role:
+            db.session.add(RbacUserRole(user_id=user.id, role_id=rbac_role.id))
+        # 也支持直接传 rbac_role_ids（多角色）
+        for rid in (data.get('rbac_role_ids') or []):
+            if rid == (rbac_role.id if rbac_role else None):
+                continue
+            if RbacRole.query.get(rid):
+                db.session.add(RbacUserRole(user_id=user.id, role_id=rid))
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({'error': '账号或手机号已存在'}), 400
     return jsonify({'message': '创建成功', 'user': user.to_dict()})
 
 @bp.route('/admin/users/<int:user_id>', methods=['PUT'])
@@ -204,15 +236,29 @@ def create_user():
 @role_required('admin')
 def update_user(user_id):
     """编辑用户（含 email/real_name/department/remark）"""
+    from sqlalchemy.exc import IntegrityError
     user = User.query.get_or_404(user_id)
     data = request.get_json() or {}
+
+    def _none_if_blank(v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v = v.strip()
+            return v if v else None
+        return v
+
     role_changed = False
-    if 'nickname' in data: user.nickname = data['nickname']
-    if 'phone' in data: user.phone = data['phone']
-    if 'email' in data: user.email = data['email']
-    if 'real_name' in data: user.real_name = data['real_name']
-    if 'department' in data: user.department = data['department']
-    if 'remark' in data: user.remark = data['remark']
+    if 'nickname' in data: user.nickname = _none_if_blank(data['nickname']) or user.nickname
+    if 'phone' in data:
+        phone = _none_if_blank(data['phone'])
+        if phone and User.query.filter(User.phone == phone, User.id != user_id).first():
+            return jsonify({'error': '手机号已存在'}), 400
+        user.phone = phone
+    if 'email' in data: user.email = _none_if_blank(data['email'])
+    if 'real_name' in data: user.real_name = _none_if_blank(data['real_name'])
+    if 'department' in data: user.department = _none_if_blank(data['department'])
+    if 'remark' in data: user.remark = _none_if_blank(data['remark'])
     if 'service_point_id' in data: user.service_point_id = data['service_point_id']
     if 'role' in data:
         # 跟 create_user 保持同一份白名单，避免漏掉 service_point_admin
@@ -224,7 +270,11 @@ def update_user(user_id):
         if user.role != data['role']:
             role_changed = True
         user.role = data['role']
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({'error': '账号或手机号已存在'}), 400
     # P1.1: 角色变了 → 旧 token 里 RBAC 权限都过期，立刻撤销
     if role_changed:
         _revoke_user_tokens(user.id)

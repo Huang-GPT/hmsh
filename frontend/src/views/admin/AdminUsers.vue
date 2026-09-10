@@ -319,6 +319,14 @@ export default {
       if (this.formMode === 'create' && !f.real_name && !f.nickname) { this.$toast('请填写姓名或昵称'); return }
       try {
         const payload = { ...f }
+        // 空字符串归一化：避免 phone='' 撞 UNIQUE 索引导致 500
+        ;['phone', 'email', 'nickname', 'real_name', 'department', 'remark'].forEach((k) => {
+          if (payload[k] !== undefined && payload[k] !== null && String(payload[k]).trim() === '') {
+            payload[k] = null
+          }
+        })
+        if (payload.account) payload.account = String(payload.account).trim()
+        if (!payload.nickname) payload.nickname = payload.real_name || payload.account
         if (this.formMode === 'create') {
           if (!f.password) payload.password = '123456'
           await createUser(payload)
