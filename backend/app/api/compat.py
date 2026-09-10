@@ -10,7 +10,7 @@ from app.services.auth_service import login_required
 from app.api.customer import (
     my_products, bind_product, unbind_product, bind_by_sap,
     my_orders, my_order_detail, cancel_order, create_order,
-    customer_faults, customer_fault_detail,
+    customer_faults, customer_fault_detail, customer_fault_categories,
 )
 from app.api.admin import (
     dashboard, get_users,
