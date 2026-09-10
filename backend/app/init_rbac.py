@@ -226,6 +226,37 @@ def init_rbac():
             db.session.commit()
             print(f'[init_rbac] admin role got {added_admin_links} missing permissions')
 
+    # P2: 对全部 builtin 角色做权限回填
+    # —— init_rbac 上一步只在 Role 表为空时跑，对存量角色没作用；
+    #    这里补一个 idempotent 的 backfill：遍历 PRESET_ROLES，对每个 builtin 角色
+    #    比对 PRESET 期望 vs DB 现状，把缺的 RolePermission 补上。
+    perm_index = {permission.code: permission for permission in Permission.query.all()}
+    for item in PRESET_ROLES:
+        if not item.get('builtin'):
+            continue
+        role = Role.query.filter_by(code=item['code']).first()
+        if not role:
+            continue
+        desired_codes = item['permissions']
+        if desired_codes == '__all__':
+            desired_codes = list(perm_index.keys())
+        existing_permission_ids = {
+            rp.permission_id for rp in role.role_permissions.all()
+        }
+        added = 0
+        for code in desired_codes:
+            perm = perm_index.get(code)
+            if not perm or perm.id in existing_permission_ids:
+                continue
+            db.session.add(RolePermission(
+                role_id=role.id,
+                permission_id=perm.id,
+            ))
+            added += 1
+        if added:
+            db.session.commit()
+            print(f'[init_rbac] {item["code"]} role backfilled {added} missing permissions')
+
     admin_user = User.query.filter_by(openid='admin').first()
     if admin_user and admin_role and not UserRole.query.filter_by(user_id=admin_user.id, role_id=admin_role.id).first():
         db.session.add(UserRole(user_id=admin_user.id, role_id=admin_role.id))
