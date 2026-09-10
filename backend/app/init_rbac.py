@@ -24,6 +24,7 @@ PRESET_PERMISSIONS = [
     ('order:edit', '编辑工单', 'order', 'edit', '编辑工单信息', 19),
     ('order:delete', '删除工单', 'order', 'delete', '永久删除工单', 20),
     ('order:export', '导出工单', 'order', 'export', '导出工单数据', 21),
+    ('order:reopen', '取消关闭工单', 'order', 'reopen', '把已关闭工单恢复到安全业务状态', 22),
 
     ('dealer_order:view', '查看售后工单', 'dealer_order', 'view', '查看经销商工单', 30),
     ('dealer_order:accept_admin', '总部代接单', 'dealer_order', 'accept', '总部代替经销商接单', 31),
@@ -89,6 +90,7 @@ PRESET_ROLES = [
         'permissions': [
             'dashboard:view',
             'order:view', 'order:accept', 'order:dispatch', 'order:assign_engineer',
+            'order:edit',
             'order:reject', 'order:cancel', 'order:export',
             'dealer_order:view', 'dealer_order:accept_admin',
             'dealer_order:assign_engineer', 'dealer_order:export',
@@ -105,8 +107,9 @@ PRESET_ROLES = [
         'permissions': [
             'dashboard:view',
             'dealer_order:view', 'dealer_order:edit', 'dealer_order:assign_engineer', 'dealer_order:export',
-            'order:view',
-            'service_point:view',
+            'order:view', 'order:edit',
+            'order:assign_engineer',
+            'service_point:view', 'service_point:edit',
             'statistics:view',
         ],
     },
@@ -162,33 +165,41 @@ def init_rbac():
         return
 
     # 2. seed permissions（幂等：基于 code）
-    if Permission.query.count() == 0:
-        for code, name, module, action, desc, sort in PRESET_PERMISSIONS:
-            db.session.add(Permission(
-                code=code, name=name, module=module, action=action,
-                description=desc, sort_order=sort,
-            ))
+    existing_codes = {permission.code for permission in Permission.query.all()}
+    added_permissions = 0
+    for code, name, module, action, desc, sort in PRESET_PERMISSIONS:
+        if code in existing_codes:
+            continue
+        db.session.add(Permission(
+            code=code,
+            name=name,
+            module=module,
+            action=action,
+            description=desc,
+            sort_order=sort,
+        ))
+        added_permissions += 1
+    if added_permissions:
         db.session.commit()
-        print(f'[init_rbac] seeded {len(PRESET_PERMISSIONS)} permissions')
+        print(f'[init_rbac] backfilled {added_permissions} permissions')
 
-    # 3. seed roles + role_permissions
     if Role.query.count() == 0:
-        perm_index = {p.code: p for p in Permission.query.all()}
-        for r in PRESET_ROLES:
+        perm_index = {permission.code: permission for permission in Permission.query.all()}
+        for item in PRESET_ROLES:
             role = Role(
-                code=r['code'],
-                name=r['name'],
-                description=r['description'],
-                builtin=r['builtin'],
-                sort_order=r['sort_order'],
+                code=item['code'],
+                name=item['name'],
+                description=item['description'],
+                builtin=item['builtin'],
+                sort_order=item['sort_order'],
                 status='active',
             )
             db.session.add(role)
-            db.session.flush()  # 获取 role.id
-            perms = r['permissions']
-            if perms == '__all__':
-                perms = list(perm_index.keys())
-            for code in perms:
+            db.session.flush()
+            permission_codes = item['permissions']
+            if permission_codes == '__all__':
+                permission_codes = list(perm_index.keys())
+            for code in permission_codes:
                 if code in perm_index:
                     db.session.add(RolePermission(
                         role_id=role.id,
@@ -197,14 +208,29 @@ def init_rbac():
         db.session.commit()
         print(f'[init_rbac] seeded {len(PRESET_ROLES)} roles')
 
-    # 4. 给现有 admin 用户授权 admin 角色（如果还没有）
     admin_role = Role.query.filter_by(code='admin').first()
     if admin_role:
-        admin_user = User.query.filter_by(openid='admin').first()
-        if admin_user and not UserRole.query.filter_by(user_id=admin_user.id, role_id=admin_role.id).first():
-            db.session.add(UserRole(user_id=admin_user.id, role_id=admin_role.id))
+        existing_permission_ids = {
+            item.permission_id for item in admin_role.role_permissions.all()
+        }
+        added_admin_links = 0
+        for permission in Permission.query.all():
+            if permission.id in existing_permission_ids:
+                continue
+            db.session.add(RolePermission(
+                role_id=admin_role.id,
+                permission_id=permission.id,
+            ))
+            added_admin_links += 1
+        if added_admin_links:
             db.session.commit()
-            print(f'[init_rbac] granted admin role to user {admin_user.openid}')
+            print(f'[init_rbac] admin role got {added_admin_links} missing permissions')
+
+    admin_user = User.query.filter_by(openid='admin').first()
+    if admin_user and admin_role and not UserRole.query.filter_by(user_id=admin_user.id, role_id=admin_role.id).first():
+        db.session.add(UserRole(user_id=admin_user.id, role_id=admin_role.id))
+        db.session.commit()
+        print(f'[init_rbac] granted admin role to user {admin_user.openid}')
 
     # 5. 【补救】按 users.role 自动绑定同名 RBAC 角色（针对迁移期间 / 早期注册的非 admin 账号）
     #    比如 1003 是 service_point 角色，会自动绑上 service_point_admin 这个 RBAC 角色，
