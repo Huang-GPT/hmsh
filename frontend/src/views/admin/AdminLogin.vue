@@ -53,7 +53,11 @@ export default {
         // token 已经在 api.js 的 response 拦截器里写进 localStorage.admin_token
         // permissions 字段由后端 generate_token 时填入 user.to_dict()（user.permissions）
         localStorage.setItem('admin_user', JSON.stringify(user))
-        if (user.role === 'service_point' || user.role === 'service_point_admin') {
+        // 跳转依据：实际权限（user.permissions），不是业务字段（user.role）
+        // —— 防止 role 声明 X 但实际 RBAC 角色权限不足时被守卫反复踢回形成"登了等于没登"
+        const perms = Array.isArray(user.permissions) ? user.permissions : []
+        const wantsDealer = user.role === 'service_point' || user.role === 'service_point_admin'
+        if (wantsDealer && perms.includes('dealer_order:view')) {
           this.$router.push('/dealer/orders')
         } else {
           this.$router.push('/admin/dashboard')

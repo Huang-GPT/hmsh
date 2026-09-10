@@ -18,6 +18,7 @@ import AdminUsers from '@/views/admin/AdminUsers.vue'
 import AdminProducts from '@/views/admin/AdminProducts.vue'
 import AdminBindings from '@/views/admin/AdminBindings.vue'
 import AdminFaults from '@/views/admin/AdminFaults.vue'
+import AdminNoPermission from '@/views/admin/AdminNoPermission.vue'
 import DealerOrders from '@/views/dealer/DealerOrders.vue'
 
 Vue.use(VueRouter)
@@ -44,7 +45,9 @@ const routes = [
     { path: 'bindings',          name: 'AdminBindings',      component: AdminBindings,     meta: { permission: 'binding:view' } },
     { path: 'faults',            name: 'AdminFaults',        component: AdminFaults,       meta: { permission: 'fault:view' } },
     { path: 'service-points',    name: 'AdminServicePoints', component: AdminServicePoints, meta: { permission: 'service_point:view' } },
-    { path: 'roles',             name: 'AdminRoles',         component: AdminRoles,        meta: { permission: 'role:view' } }
+    { path: 'roles',             name: 'AdminRoles',         component: AdminRoles,        meta: { permission: 'role:view' } },
+    // 无权限提示页 — 不设 meta.permission，避免守卫递归跳回 /admin/dashboard 死循环
+    { path: 'no-permission',     name: 'AdminNoPermission',  component: AdminNoPermission }
   ]},
 
   // 经销商视图（也是用 AdminLayout 当壳，但侧边栏菜单过滤逻辑会按 service_point_admin 走）
@@ -82,9 +85,9 @@ router.beforeEach((to, from, next) => {
   if (required) {
     const perms = (user && Array.isArray(user.permissions)) ? user.permissions : []
     if (!perms.includes(required)) {
-      // 没权限 — 不让进；跳回 dashboard
+      // 没权限 — 不让进；跳到 /admin/no-permission（该页无 meta.permission，不会触发本守卫再次拦截）
       console.warn(`[router] denied: ${to.path} requires ${required}, user has:`, perms)
-      return next({ path: '/admin/dashboard', query: { denied: required } })
+      return next({ path: '/admin/no-permission', query: { required, from: to.fullPath } })
     }
   }
 
