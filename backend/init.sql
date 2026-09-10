@@ -173,6 +173,9 @@ CREATE TABLE IF NOT EXISTS common_faults (
     FOREIGN KEY (category_id) REFERENCES fault_categories(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 兼容老部署：2026-09 重构常见故障为「后台上传文件+前端查看」，加 files JSON 字段
+ALTER TABLE common_faults ADD COLUMN IF NOT EXISTS files JSON COMMENT '常见故障文件列表 [{url, name, size, mime}]';
+
 -- ===========================================
 -- 工单表（核心）
 -- ===========================================

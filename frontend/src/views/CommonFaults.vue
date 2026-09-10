@@ -1,124 +1,258 @@
 <template>
   <div class="common-faults">
-    <h1>常见故障</h1>
-    
-    <van-search
-      v-model="keyword"
-      placeholder="搜索故障"
-      @search="onSearch"
+    <!-- 顶部导航条：列表态 vs 文件态 -->
+    <van-nav-bar
+      :title="view === 'categories' ? '常见故障' : (currentCategory ? currentCategory.name : '故障文件')"
+      :left-arrow="view !== 'categories'"
+      @click-left="backToCategories"
+      fixed
+      placeholder
     />
-    
-    <van-tabs v-model="activeModel" @change="onModelChange">
-      <van-tab title="HM-001" name="HM-001" />
-      <van-tab title="HM-002" name="HM-002" />
-      <van-tab title="HM-003" name="HM-003" />
-    </van-tabs>
-    
-    <van-list>
-      <van-cell-group>
+
+    <!-- ============ 视图1：分类列表 ============ -->
+    <div v-if="view === 'categories'" class="cat-view">
+      <van-search
+        v-model="catKeyword"
+        placeholder="搜索分类"
+        @search="loadCategories"
+      />
+      <van-cell-group v-if="filteredCategories.length">
         <van-cell
-          v-for="fault in faults"
-          :key="fault.id"
-          :title="fault.fault_type"
-          :label="fault.fault_desc"
+          v-for="cat in filteredCategories"
+          :key="cat.id"
+          :title="cat.name"
+          :label="`${fileCountOf(cat)} 个文件`"
           is-link
-          @click="viewDetail(fault.id)"
-        />
+          @click="openCategory(cat)"
+        >
+          <template #icon>
+            <span class="cat-icon">{{ cat.icon || '🔧' }}</span>
+          </template>
+        </van-cell>
       </van-cell-group>
-    </van-list>
-    
-    <van-empty v-if="faults.length === 0" description="暂无相关故障" />
-    
-    <van-popup v-model="showDetail" position="bottom" :style="{ height: '70%' }">
-      <div class="fault-detail" v-if="currentFault">
-        <h2>{{ currentFault.fault_type }}</h2>
-        <h3>故障现象</h3>
-        <p>{{ currentFault.fault_desc }}</p>
-        <h3>解决方案</h3>
-        <p>{{ currentFault.solution }}</p>
-        
-        <div class="feedback">
-          <van-button type="primary" size="small" @click="markHelpful">
-            有帮助 ({{ currentFault.helpful_count }})
-          </van-button>
+      <van-empty v-else description="暂无故障分类" />
+    </div>
+
+    <!-- ============ 视图2：分类下的文件列表 ============ -->
+    <div v-else class="files-view">
+      <div class="cat-banner">
+        <van-icon :name="currentCategory ? currentCategory.icon || '🔧' : '🔧'" size="20" />
+        <span class="banner-text">{{ currentCategory ? currentCategory.name : '' }}</span>
+      </div>
+
+      <div v-if="loadingFiles" class="loading-tip">加载中…</div>
+
+      <div v-else-if="flatFiles.length === 0" class="empty-tip">
+        <van-empty description="该分类下暂无文件" />
+      </div>
+
+      <div v-else>
+        <div
+          v-for="grp in groupedFiles"
+          :key="grp.faultId"
+          class="fault-group"
+        >
+          <div v-if="grp.faultTitle" class="fault-title">{{ grp.faultTitle }}</div>
+          <van-cell-group>
+            <van-cell
+              v-for="f in grp.files"
+              :key="f.url"
+              :title="f.filename"
+              :label="`${fileKindLabel(f)} · ${formatSize(f.size)}`"
+              is-link
+              @click="openFile(f)"
+            >
+              <template #icon>
+                <van-icon :name="fileIcon(f)" :color="fileColor(f)" size="22" class="file-cell-icon" />
+              </template>
+            </van-cell>
+          </van-cell-group>
         </div>
       </div>
-    </van-popup>
+    </div>
   </div>
 </template>
 
 <script>
-import { getFaults, getFaultDetail, markHelpful } from '@/api/faults'
+import { getFaultCategories, getFaultsByCategory } from '@/api/faults'
 
 export default {
   name: 'CommonFaults',
   data() {
     return {
-      keyword: '',
-      activeModel: 'HM-001',
+      view: 'categories',     // 'categories' | 'files'
+      catKeyword: '',
+      categories: [],
+      currentCategory: null,
       faults: [],
-      showDetail: false,
-      currentFault: null
+      loadingFiles: false,
     }
+  },
+  computed: {
+    filteredCategories() {
+      const kw = (this.catKeyword || '').trim().toLowerCase()
+      if (!kw) return this.categories
+      return this.categories.filter(c => (c.name || '').toLowerCase().includes(kw))
+    },
+    /** 把 CommonFault 条目展平成单层文件数组 */
+    flatFiles() {
+      const out = []
+      for (const f of this.faults) {
+        if (Array.isArray(f.files)) {
+          for (const file of f.files) {
+            out.push({ ...file, _faultTitle: f.title, _faultId: f.id })
+          }
+        }
+      }
+      return out
+    },
+    /** 按 fault 分组的文件列表（每个故障一个 cell-group） */
+    groupedFiles() {
+      const out = []
+      for (const f of this.faults) {
+        if (Array.isArray(f.files) && f.files.length) {
+          out.push({
+            faultId: f.id,
+            faultTitle: f.title,
+            files: f.files,
+          })
+        }
+      }
+      return out
+    },
   },
   created() {
-    this.loadFaults()
+    this.loadCategories()
   },
   methods: {
-    onSearch() {
-      this.loadFaults()
-    },
-    onModelChange(model) {
-      this.activeModel = model
-      this.loadFaults()
-    },
-    async loadFaults() {
+    async loadCategories() {
       try {
-        const res = await getFaults(this.activeModel, this.keyword)
-        this.faults = res.data.faults
-      } catch (error) {
-        console.error('加载故障列表失败', error)
+        const res = await getFaultCategories()
+        this.categories = (res.data && res.data.categories) || []
+      } catch (e) {
+        console.error('加载分类失败', e)
+        this.$toast('加载分类失败')
       }
     },
-    async viewDetail(faultId) {
+    async openCategory(cat) {
+      this.currentCategory = cat
+      this.view = 'files'
+      this.loadingFiles = true
       try {
-        const res = await getFaultDetail(faultId)
-        this.currentFault = res.data.fault
-        this.showDetail = true
-      } catch (error) {
-        this.$toast.fail('加载详情失败')
+        const res = await getFaultsByCategory(cat.id)
+        this.faults = (res.data && res.data.faults) || []
+      } catch (e) {
+        console.error('加载故障文件失败', e)
+        this.$toast('加载失败')
+        this.faults = []
+      } finally {
+        this.loadingFiles = false
       }
     },
-    async markHelpful() {
-      try {
-        const res = await markHelpful(this.currentFault.id)
-        this.currentFault = res.data.fault
-        this.$toast.success('感谢反馈')
-      } catch (error) {
-        this.$toast.fail('操作失败')
+    backToCategories() {
+      this.view = 'categories'
+      this.currentCategory = null
+      this.faults = []
+    },
+    fileCountOf(cat) {
+      // 分类列表返回时不带 count（admin 接口才有）— 用文件名打 0 占位
+      // 简化：客户端不过度依赖计数
+      return '—'
+    },
+    fileExt(file) {
+      return (file.filename || '').toLowerCase().split('.').pop() || ''
+    },
+    fileIcon(file) {
+      const ext = this.fileExt(file)
+      if (ext === 'pdf') return 'description'
+      if (ext === 'doc' || ext === 'docx') return 'word'
+      if (['jpg', 'jpeg', 'png'].includes(ext)) return 'photo-o'
+      return 'file-o'
+    },
+    fileColor(file) {
+      const ext = this.fileExt(file)
+      if (ext === 'pdf') return '#e74c3c'
+      if (ext === 'doc' || ext === 'docx') return '#2c5aa0'
+      if (['jpg', 'jpeg', 'png'].includes(ext)) return '#16a34a'
+      return '#666'
+    },
+    fileKindLabel(file) {
+      const ext = this.fileExt(file)
+      const map = { pdf: 'PDF', doc: 'DOC', docx: 'DOCX', jpg: 'JPG', jpeg: 'JPG', png: 'PNG' }
+      return map[ext] || ext.toUpperCase()
+    },
+    formatSize(bytes) {
+      if (!bytes) return ''
+      if (bytes < 1024) return bytes + ' B'
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+      return (bytes / 1024 / 1024).toFixed(1) + ' MB'
+    },
+    openFile(file) {
+      const ext = this.fileExt(file)
+      // PDF / 图片 → 浏览器打开（新标签）
+      if (ext === 'pdf' || ['jpg', 'jpeg', 'png'].includes(ext)) {
+        window.open(file.url, '_blank')
+        return
       }
-    }
-  }
+      // DOC / DOCX / 其他 → 触发下载（避免浏览器试图内嵌打开失败）
+      const a = document.createElement('a')
+      a.href = file.url
+      a.download = file.filename || 'download'
+      a.style.display = 'none'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    },
+  },
 }
 </script>
 
 <style scoped>
 .common-faults {
-  padding: 16px;
+  background: #f7f8fa;
+  min-height: 100vh;
 }
-.fault-detail {
-  padding: 16px;
+.cat-view,
+.files-view {
+  padding: 0 0 16px;
 }
-.fault-detail h2 {
-  margin-bottom: 16px;
+.cat-icon {
+  font-size: 22px;
+  margin-right: 10px;
+  margin-left: 4px;
+  flex-shrink: 0;
 }
-.fault-detail h3 {
-  margin-top: 16px;
-  margin-bottom: 8px;
-  color: #666;
+.cat-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: white;
+  border-bottom: 1px solid #ebedf0;
 }
-.feedback {
-  margin-top: 24px;
+.banner-text {
+  font-size: 15px;
+  color: #1f2937;
+  font-weight: 500;
+}
+.fault-group {
+  margin-bottom: 12px;
+}
+.fault-title {
+  padding: 8px 16px 4px;
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 500;
+}
+.file-cell-icon {
+  margin-right: 10px;
+  margin-left: 4px;
+}
+.loading-tip,
+.empty-tip {
+  padding: 40px 0;
   text-align: center;
+  color: #9ca3af;
+  font-size: 13px;
 }
 </style>

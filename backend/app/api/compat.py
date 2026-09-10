@@ -85,6 +85,14 @@ def compat_list_faults():
     return customer_faults()
 
 
+@bp.route('/fault-categories', methods=['GET'])
+@login_required
+def compat_list_fault_categories():
+    """旧: GET /api/fault-categories — 转发到 customer_fault_categories
+       用于手机端重构后的 CommonFaults 页面"""
+    return customer_fault_categories()
+
+
 @bp.route('/faults/<int:fault_id>', methods=['GET'])
 @login_required
 def compat_get_fault(fault_id):

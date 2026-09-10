@@ -201,6 +201,21 @@ export function deleteFault(faultId) {
   return api.delete(`/admin/faults/${faultId}`)
 }
 
+// ========== 常见故障文件上传（PDF/DOC/DOCX/图片） ==========
+export function uploadFaultFile(file, onProgress) {
+  const form = new FormData()
+  form.append('file', file)
+  return api.post('/upload/fault', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: onProgress,
+  })
+}
+
+export function deleteFaultFile(filename) {
+  // filename 形如 '2026-09-10/abc123def.pdf'，由后端校验防止目录穿越
+  return api.delete(`/upload/fault/${filename}`)
+}
+
 export function getServiceStaff() {
   return api.get('/admin/service-staff')
 }

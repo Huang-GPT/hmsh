@@ -1019,6 +1019,7 @@ def create_fault():
     fault = CommonFault(
         category_id=data['category_id'], title=data['title'], content=data.get('content'),
         product_model=data.get('product_model'), images=data.get('images'),
+        files=data.get('files') or [],
         sort_order=data.get('sort_order', 0)
     )
     db.session.add(fault)
@@ -1032,9 +1033,9 @@ def create_fault():
 def update_fault(fault_id):
     fault = CommonFault.query.get_or_404(fault_id)
     data = request.get_json()
-    for k in ['category_id','title','content','product_model','images','sort_order','status']:
+    for k in ['category_id','title','content','product_model','images','files','sort_order','status']:
         if k in data:
-            setattr(fault, k, data[k])
+            setattr(fault, k, data[k] if k != 'files' else (data[k] or []))
     db.session.commit()
     return jsonify({'message': '更新成功', 'fault': fault.to_dict()})
 

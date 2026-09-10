@@ -110,6 +110,38 @@
         <van-field v-model="faultForm.title" label="标题" placeholder="如: 无法开机" required maxlength="60" />
         <van-field v-model="faultForm.product_model" label="适用型号" placeholder="如: HM-001（留空表示通用）" maxlength="40" />
         <van-field v-model="faultForm.content" label="详细内容" type="textarea" placeholder="故障描述、原因、解决方案…" rows="4" maxlength="1000" />
+
+        <!-- ============ 常见故障文件管理（新增 2026-09 重构） ============ -->
+        <div class="fault-files">
+          <div class="files-title">
+            <span>常见故障文件</span>
+            <span class="files-hint">PDF / DOC / DOCX / 图片（单文件 ≤20MB）</span>
+          </div>
+          <div v-if="faultForm.files.length === 0" class="files-empty">暂无文件，请点击下方上传</div>
+          <div v-for="(file, idx) in faultForm.files" :key="file.url" class="file-row">
+            <van-icon :name="fileIcon(file)" :color="fileColor(file)" size="20" />
+            <div class="file-meta">
+              <div class="file-name" :title="file.filename">{{ file.filename }}</div>
+              <div class="file-info">
+                <span class="file-size">{{ formatSize(file.size) }}</span>
+                <span class="file-kind">{{ fileKindLabel(file) }}</span>
+              </div>
+            </div>
+            <van-button size="mini" plain type="danger" @click="removeFaultFile(idx)">删除</van-button>
+          </div>
+          <van-uploader
+            v-if="faultForm.files.length < 20"
+            class="files-uploader"
+            :after-read="handleFaultFileUpload"
+            :max-size="20 * 1024 * 1024"
+            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+            :preview-image="false"
+            :multiple="true"
+          >
+            <van-button size="small" icon="plus" type="primary" plain>上传文件</van-button>
+          </van-uploader>
+        </div>
+
         <van-cell title="排序">
           <template #value>
             <input type="number" v-model.number="faultForm.sort_order" class="num-input" min="0" />
@@ -130,6 +162,7 @@
 import {
   getAllFaultCategories, createFaultCategory, updateFaultCategory, deleteFaultCategory,
   getAllFaults, createFault, updateFault, deleteFault,
+  uploadFaultFile, deleteFaultFile,
 } from '@/api/admin'
 
 const emptyCatForm = () => ({
@@ -144,6 +177,7 @@ const emptyFaultForm = () => ({
   title: '',
   content: '',
   product_model: '',
+  files: [],
   sort_order: 0,
   status: 'active',
 })
@@ -262,6 +296,7 @@ export default {
         title: f.title,
         content: f.content,
         product_model: f.product_model,
+        files: Array.isArray(f.files) ? [...f.files] : [],
         sort_order: f.sort_order || 0,
         status: f.status,
       }
@@ -308,6 +343,96 @@ export default {
           this.$toast('操作失败')
         }
       }).catch(() => {})
+    },
+
+    // ===== 故障文件管理 =====
+    fileExt(file) {
+      return (file.filename || '').toLowerCase().split('.').pop() || ''
+    },
+    fileIcon(file) {
+      const ext = this.fileExt(file)
+      if (ext === 'pdf') return 'description'
+      if (ext === 'doc' || ext === 'docx') return 'word'
+      if (['jpg', 'jpeg', 'png'].includes(ext)) return 'photo-o'
+      return 'file-o'
+    },
+    fileColor(file) {
+      const ext = this.fileExt(file)
+      if (ext === 'pdf') return '#e74c3c'
+      if (ext === 'doc' || ext === 'docx') return '#2c5aa0'
+      if (['jpg', 'jpeg', 'png'].includes(ext)) return '#16a34a'
+      return '#666'
+    },
+    fileKindLabel(file) {
+      const ext = this.fileExt(file)
+      const map = { pdf: 'PDF', doc: 'DOC', docx: 'DOCX', jpg: 'JPG', jpeg: 'JPG', png: 'PNG' }
+      return map[ext] || ext.toUpperCase()
+    },
+    formatSize(bytes) {
+      if (!bytes) return ''
+      if (bytes < 1024) return bytes + ' B'
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+      return (bytes / 1024 / 1024).toFixed(1) + ' MB'
+    },
+    async handleFaultFileUpload(fileObj) {
+      // van-uploader 多文件时 fileObj 是数组；单文件是单个对象
+      const files = Array.isArray(fileObj) ? fileObj : [fileObj]
+      for (const item of files) {
+        if (!item || !item.file) continue
+        item.status = 'uploading'
+        item.message = '上传中…'
+        try {
+          const res = await uploadFaultFile(item.file)
+          const d = (res && res.data) || {}
+          // 立即保存到 DB（不依赖 dialog 的 save 按钮）
+          if (this.editingFault && this.editingFault.id) {
+            const next = [...this.faultForm.files, {
+              url: d.url,
+              filename: d.filename,
+              size: d.size,
+              content_type: d.content_type,
+              kind: d.kind,
+            }]
+            await updateFault(this.editingFault.id, { files: next })
+            this.faultForm.files = next
+          }
+          item.status = 'done'
+        } catch (e) {
+          item.status = 'failed'
+          item.message = (e && e.response && e.response.data && e.response.data.error) || '上传失败'
+        }
+      }
+      // 同步刷新列表中该条目的 files（不重载整列表）
+      if (this.editingFault && this.editingFault.id) {
+        const idx = this.faults.findIndex(x => x.id === this.editingFault.id)
+        if (idx >= 0) this.faults[idx].files = [...this.faultForm.files]
+      }
+    },
+    async removeFaultFile(idx) {
+      const file = this.faultForm.files[idx]
+      if (!file) return
+      try {
+        await this.$dialog.confirm({
+          title: '删除确认',
+          message: `确定删除文件「${file.filename}」吗？文件将从服务器彻底删除。`,
+        })
+      } catch (_) {
+        return
+      }
+      try {
+        // 后端 URL 形如 /uploads/faults/<date>/<uuid>.<ext>，去掉前缀
+        const rel = (file.url || '').replace(/^\/uploads\//, '')
+        await deleteFaultFile(rel)
+        this.faultForm.files.splice(idx, 1)
+        if (this.editingFault && this.editingFault.id) {
+          await updateFault(this.editingFault.id, { files: this.faultForm.files })
+          const i = this.faults.findIndex(x => x.id === this.editingFault.id)
+          if (i >= 0) this.faults[i].files = [...this.faultForm.files]
+        }
+        this.$toast.success('已删除')
+      } catch (e) {
+        this.$toast((e && e.response && e.response.data && e.response.data.error) || '删除失败')
+      }
     },
   },
 }
@@ -371,5 +496,72 @@ h3 {
 }
 .select-input {
   min-width: 140px;
+}
+
+/* ============ 常见故障文件管理样式 ============ */
+.fault-files {
+  margin: 12px 16px;
+  padding: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+.files-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+}
+.files-hint {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: normal;
+}
+.files-empty {
+  padding: 12px 0;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 13px;
+}
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.file-row:last-of-type {
+  border-bottom: none;
+}
+.file-meta {
+  flex: 1;
+  min-width: 0;
+}
+.file-name {
+  font-size: 13px;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+.file-info {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #6b7280;
+}
+.file-kind {
+  background: #e5e7eb;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+.files-uploader {
+  margin-top: 8px;
 }
 </style>

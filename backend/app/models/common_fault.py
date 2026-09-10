@@ -32,6 +32,8 @@ class CommonFault(db.Model):
     product_model = db.Column(db.String(64))
     images = db.Column(db.JSON)
     videos = db.Column(db.JSON)
+    # files: 后台上传的常见故障文件列表 [{url, name, size, mime}] — 重构于 2026-09
+    files = db.Column(db.JSON)
     sort_order = db.Column(db.Integer, default=0)
     view_count = db.Column(db.Integer, default=0)
     helpful_count = db.Column(db.Integer, default=0)
@@ -50,6 +52,7 @@ class CommonFault(db.Model):
             'content': self.content,
             'product_model': self.product_model,
             'images': self.images,
+            'files': self.files or [],
             'sort_order': self.sort_order,
             'view_count': self.view_count,
             'helpful_count': self.helpful_count,

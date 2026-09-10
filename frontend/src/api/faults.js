@@ -28,3 +28,12 @@ export function getPopularFaults(limit = 10) {
 export function createFault(data) {
   return api.post('/faults', data)
 }
+
+// ========== 重构 2026-09：分类→文件列表 ==========
+export function getFaultCategories() {
+  return api.get('/fault-categories')
+}
+
+export function getFaultsByCategory(categoryId) {
+  return api.get('/faults', { params: { category_id: categoryId } })
+}
