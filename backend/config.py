@@ -16,3 +16,12 @@ class Config:
     BCRYPT_LOG_ROUNDS = 12
     UPLOAD_DIR = os.environ.get('UPLOAD_DIR') or '/app/uploads'
     MAX_CONTENT_LENGTH = 20 * 1024 * 1024  # 20MB max upload (视频已禁用)
+
+
+class TestConfig(Config):
+    TESTING = True
+    SECRET_KEY = 'hongmen-after-sales-test-secret'
+    SQLALCHEMY_DATABASE_URI = 'sqlite://'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    JWT_EXPIRY_HOURS = 1
+    BCRYPT_LOG_ROUNDS = 4
