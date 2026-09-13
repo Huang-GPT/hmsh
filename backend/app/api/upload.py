@@ -10,9 +10,8 @@
 """
 import os
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from flask import request, jsonify, current_app, send_from_directory, g
-from sqlalchemy import text
 
 from app.api import bp
 from app import db
@@ -30,9 +29,6 @@ ALLOWED_VIDEO = {'mp4', 'mov', 'avi', 'mkv', 'webm', '3gp', 'm4v'}
 # 单文件大小上限
 IMAGE_MAX_SIZE = 10 * 1024 * 1024     # 10MB — 图片
 FAULT_MAX_SIZE = 20 * 1024 * 1024     # 20MB — 故障文件（PDF 文档可能较大）
-
-# 故障附件软删保留天数（NULL deleted_at 期间可恢复；超过保留期 hard-delete）
-ATTACHMENT_SOFT_DELETE_RETENTION_DAYS = 30
 
 
 def _ext_ok(filename, allowed):
@@ -299,85 +295,3 @@ def cleanup_videos():
                 except Exception as e:
                     print(f"[cleanup-videos] 删除失败: {fp} - {e}")
     print(f"[cleanup-videos] 删除 {deleted} 个视频文件，释放 {freed / 1024 / 1024:.2f} MB")
-
-
-@bp.cli.command('cleanup-orphan-attachments')
-def cleanup_orphan_attachments():
-    """清理 common_fault_attachments 中的孤儿：
-       1. 软删超过保留期的 → 物理删文件 + hard-delete 行
-       2. DB 行存在但磁盘文件丢失 → 标记 deleted_at
-    """
-    base = _upload_base()
-    cutoff = datetime.utcnow() - timedelta(days=ATTACHMENT_SOFT_DELETE_RETENTION_DAYS)
-
-    # 1. 软删超期 → 物理删
-    stale = FaultAttachment.query.filter(
-        FaultAttachment.deleted_at.isnot(None),
-        FaultAttachment.deleted_at < cutoff,
-    ).all()
-    hard_deleted = 0
-    freed = 0
-    for att in stale:
-        try:
-            rel = att.url.replace('/uploads/', '', 1)
-            fp = os.path.join(base, rel)
-            if os.path.isfile(fp):
-                freed += os.path.getsize(fp)
-                os.remove(fp)
-            db.session.delete(att)
-            hard_deleted += 1
-        except Exception as e:
-            print(f"[cleanup-orphans] hard-delete failed: {att.id} - {e}")
-    if hard_deleted:
-        db.session.commit()
-
-    # 2. DB 行存在但磁盘文件丢失 → 标记 deleted_at（避免前端 404）
-    missing = FaultAttachment.query.filter(FaultAttachment.deleted_at.is_(None)).all()
-    marked = 0
-    for att in missing:
-        rel = att.url.replace('/uploads/', '', 1)
-        fp = os.path.join(base, rel)
-        if not os.path.isfile(fp):
-            att.deleted_at = datetime.utcnow()
-            marked += 1
-    if marked:
-        db.session.commit()
-
-    print(f"[cleanup-orphans] hard-deleted {hard_deleted} stale attachments (freed {freed / 1024 / 1024:.2f} MB), "
-          f"marked {marked} missing-on-disk as soft-deleted")
-
-
-@bp.cli.command('cleanup-orphan-files')
-def cleanup_orphan_files():
-    """清理磁盘孤儿：faults/ 下的文件没有 DB 行引用（来自早期 /upload/fault 接口）
-       注意：会扫描所有日期子目录，按 filename UUID 查 DB。
-    """
-    base = os.path.join(_upload_base(), 'faults')
-    if not os.path.isdir(base):
-        print(f"[cleanup-orphan-files] {base} 不存在，跳过")
-        return
-    # 收集 DB 中所有 url 末段 filename
-    rows = db.session.execute(text(
-        "SELECT url FROM common_fault_attachments WHERE deleted_at IS NULL"
-    )).fetchall()
-    referenced = set()
-    for (url,) in rows:
-        if url and url.startswith('/uploads/faults/'):
-            referenced.add(os.path.basename(url))
-
-    deleted = 0
-    freed = 0
-    for date_dir in os.listdir(base):
-        date_path = os.path.join(base, date_dir)
-        if not os.path.isdir(date_path):
-            continue
-        for fn in os.listdir(date_path):
-            if fn not in referenced:
-                fp = os.path.join(date_path, fn)
-                try:
-                    freed += os.path.getsize(fp)
-                    os.remove(fp)
-                    deleted += 1
-                except Exception as e:
-                    print(f"[cleanup-orphan-files] delete failed: {fp} - {e}")
-    print(f"[cleanup-orphan-files] deleted {deleted} orphan files, freed {freed / 1024 / 1024:.2f} MB")

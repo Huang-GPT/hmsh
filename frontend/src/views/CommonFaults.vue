@@ -155,8 +155,7 @@ export default {
       this.faults = []
     },
     fileCountOf(cat) {
-      // 后端 customer_fault_categories 已返回 attachment_count（P1 重构）
-      if (cat && typeof cat.attachment_count === 'number') return cat.attachment_count
+      // 分类列表不返回附件数 — 用 '—' 占位（不依赖后端聚合）
       return '—'
     },
     fileExt(file) {

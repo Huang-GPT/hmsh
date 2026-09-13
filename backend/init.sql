@@ -295,19 +295,10 @@ INSERT INTO service_points (name, contact_person, contact_phone, address, region
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 -- ===========================================
--- 故障库重构（2026-09 P0+P1）
--- 行业标准设计：attachments / revisions / tags 独立表
--- 数据迁移见 init_rbac.py:_migrate_fault_library（已有 DB 走 Python 迁移）
+-- 故障附件表（2026-09 重构：files JSON → 独立 attachments 表）
+-- 后台上传文件，前端 CommonFaults 页面按分类展示文件列表
 -- ===========================================
 
--- schema_meta：跨迁移版本的幂等标记（避免重复迁移）
-CREATE TABLE IF NOT EXISTS schema_meta (
-    `key` VARCHAR(64) PRIMARY KEY,
-    `value` VARCHAR(255),
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 附件表：独立于 common_faults，支持事务化上传 + 审计 + 软删
 CREATE TABLE IF NOT EXISTS common_fault_attachments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     fault_id INT NOT NULL COMMENT '所属故障条目',
@@ -316,66 +307,9 @@ CREATE TABLE IF NOT EXISTS common_fault_attachments (
     size INT NOT NULL DEFAULT 0 COMMENT '字节',
     mime VARCHAR(128) COMMENT 'MIME 类型',
     kind ENUM('pdf','doc','docx','image','file') NOT NULL DEFAULT 'file' COMMENT '文件分类',
-    uploaded_by INT COMMENT '上传者 user_id',
     uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     sort_order INT DEFAULT 0,
     deleted_at DATETIME COMMENT '软删时间（NULL=可见）',
     INDEX idx_fault_active (fault_id, deleted_at),
-    INDEX idx_uploader (uploaded_by),
     FOREIGN KEY (fault_id) REFERENCES common_faults(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 版本历史表：每次更新 snapshot（手机端不读，后台 admin 可查）
-CREATE TABLE IF NOT EXISTS common_fault_revisions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    fault_id INT NOT NULL,
-    version INT NOT NULL COMMENT '版本号，从 1 开始',
-    snapshot JSON NOT NULL COMMENT '该版本完整 fault + attachments 数据',
-    change_note VARCHAR(255) COMMENT '本次修改说明',
-    created_by INT COMMENT '修改者 user_id',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_fault_version (fault_id, version),
-    INDEX idx_fault (fault_id),
-    FOREIGN KEY (fault_id) REFERENCES common_faults(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 标签字典
-CREATE TABLE IF NOT EXISTS common_fault_tags (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(50) NOT NULL COMMENT '标签显示名',
-    slug VARCHAR(50) NOT NULL UNIQUE COMMENT '英文 slug',
-    color VARCHAR(20) DEFAULT '#909399' COMMENT '展示色',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 故障-标签关联
-CREATE TABLE IF NOT EXISTS common_fault_tag_map (
-    fault_id INT NOT NULL,
-    tag_id INT NOT NULL,
-    PRIMARY KEY (fault_id, tag_id),
-    FOREIGN KEY (fault_id) REFERENCES common_faults(id) ON DELETE CASCADE,
-    FOREIGN KEY (tag_id) REFERENCES common_fault_tags(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 审计字段
-ALTER TABLE common_faults ADD COLUMN IF NOT EXISTS created_by INT COMMENT '创建者 user_id';
-ALTER TABLE common_faults ADD COLUMN IF NOT EXISTS updated_by INT COMMENT '最后修改者 user_id';
-
--- FULLTEXT（FULLTEXT 不支持 IF NOT EXISTS，用 information_schema 兜底）
-SET @has_ft := (
-    SELECT COUNT(*) FROM information_schema.STATISTICS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = 'common_faults'
-      AND INDEX_NAME = 'ft_title_content'
-);
-SET @sql := IF(@has_ft = 0,
-    'ALTER TABLE common_faults ADD FULLTEXT INDEX ft_title_content (title, content)',
-    'DO 0');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
--- 默认标签字典
-INSERT IGNORE INTO common_fault_tags (name, slug, color) VALUES
-('常见', 'common', '#909399'),
-('紧急', 'urgent', '#f56c6c'),
-('高频', 'frequent', '#67c23a'),
-('升级', 'escalated', '#e6a23c');
