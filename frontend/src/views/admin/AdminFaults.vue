@@ -111,35 +111,67 @@
         <van-field v-model="faultForm.product_model" label="适用型号" placeholder="如: HM-001（留空表示通用）" maxlength="40" />
         <van-field v-model="faultForm.content" label="详细内容" type="textarea" placeholder="故障描述、原因、解决方案…" rows="4" maxlength="1000" />
 
-        <!-- ============ 常见故障文件管理（新增 2026-09 重构） ============ -->
+        <!-- ============ 常见故障文件管理（P0+P1 重构 2026-09） ============ -->
         <div class="fault-files">
           <div class="files-title">
             <span>常见故障文件</span>
             <span class="files-hint">PDF / DOC / DOCX / 图片（单文件 ≤20MB）</span>
           </div>
-          <div v-if="faultForm.files.length === 0" class="files-empty">暂无文件，请点击下方上传</div>
-          <div v-for="(file, idx) in faultForm.files" :key="file.url" class="file-row">
-            <van-icon :name="fileIcon(file)" :color="fileColor(file)" size="20" />
-            <div class="file-meta">
-              <div class="file-name" :title="file.filename">{{ file.filename }}</div>
-              <div class="file-info">
-                <span class="file-size">{{ formatSize(file.size) }}</span>
-                <span class="file-kind">{{ fileKindLabel(file) }}</span>
-              </div>
-            </div>
-            <van-button size="mini" plain type="danger" @click="removeFaultFile(idx)">删除</van-button>
+          <!-- P0：新建模式下禁用上传（必须先保存条目） -->
+          <div v-if="!editingFault" class="files-empty files-empty-locked">
+            ⚠️ 请先填写标题/分类并点击「确定」保存条目，再上传附件
           </div>
-          <van-uploader
-            v-if="faultForm.files.length < 20"
-            class="files-uploader"
-            :after-read="handleFaultFileUpload"
-            :max-size="20 * 1024 * 1024"
-            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-            :preview-image="false"
-            :multiple="true"
-          >
-            <van-button size="small" icon="plus" type="primary" plain>上传文件</van-button>
-          </van-uploader>
+          <template v-else>
+            <div v-if="faultForm.attachments.length === 0" class="files-empty">暂无文件，请点击下方上传</div>
+            <div v-for="att in faultForm.attachments" :key="att.id" class="file-row">
+              <van-icon :name="fileIcon(att)" :color="fileColor(att)" size="20" />
+              <div class="file-meta">
+                <div class="file-name" :title="att.filename">{{ att.filename }}</div>
+                <div class="file-info">
+                  <span class="file-size">{{ formatSize(att.size) }}</span>
+                  <span class="file-kind">{{ fileKindLabel(att) }}</span>
+                  <span v-if="att.uploaded_at" class="file-time">
+                    · {{ formatUploadedTime(att.uploaded_at) }}
+                  </span>
+                </div>
+              </div>
+              <!-- P0 显式四态：上传中的临时条目 -->
+              <span v-if="att.status === 'uploading'" class="status-tag status-uploading">上传中</span>
+              <span v-else-if="att.status === 'failed'" class="status-tag status-failed">失败</span>
+              <span v-else-if="att.status === 'done'" class="status-tag status-done">已上传</span>
+              <van-button size="mini" plain type="danger" @click="removeFaultFile(att)">删除</van-button>
+            </div>
+            <van-uploader
+              v-if="faultForm.attachments.length < 20"
+              class="files-uploader"
+              :after-read="handleFaultFileUpload"
+              :max-size="20 * 1024 * 1024"
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              :preview-image="false"
+              :multiple="true"
+            >
+              <van-button size="small" icon="plus" type="primary" plain>上传文件</van-button>
+            </van-uploader>
+          </template>
+        </div>
+
+        <!-- ============ 故障标签（P1 多选） ============ -->
+        <div v-if="availableTags.length > 0" class="fault-tags">
+          <div class="files-title">
+            <span>故障标签</span>
+            <span class="files-hint">多选</span>
+          </div>
+          <div class="tag-list">
+            <van-tag
+              v-for="t in availableTags"
+              :key="t.id"
+              :type="faultForm.tag_ids.includes(t.id) ? 'primary' : 'default'"
+              :color="faultForm.tag_ids.includes(t.id) ? t.color : undefined"
+              plain
+              class="tag-chip"
+              @click="toggleTag(t.id)"
+            >{{ t.name }}</van-tag>
+          </div>
         </div>
 
         <van-cell title="排序">
@@ -162,7 +194,8 @@
 import {
   getAllFaultCategories, createFaultCategory, updateFaultCategory, deleteFaultCategory,
   getAllFaults, createFault, updateFault, deleteFault,
-  uploadFaultFile, deleteFaultFile,
+  uploadFaultAttachment, deleteFaultAttachment, getFaultAttachments,
+  listFaultTags, listFaultRevisions,
 } from '@/api/admin'
 
 const emptyCatForm = () => ({
@@ -177,7 +210,8 @@ const emptyFaultForm = () => ({
   title: '',
   content: '',
   product_model: '',
-  files: [],
+  tag_ids: [],
+  attachments: [],  // [{id, url, filename, size, kind, uploaded_at, uploaded_by_name, status}]
   sort_order: 0,
   status: 'active',
 })
@@ -199,6 +233,7 @@ export default {
       // 故障条目
       faultKeyword: '',
       faults: [],
+      availableTags: [],  // P1 标签字典
       showFaultDialog: false,
       editingFault: null,
       faultForm: emptyFaultForm(),
@@ -208,6 +243,7 @@ export default {
   created() {
     this.loadCategories()
     this.loadFaults()
+    this.loadTags()
   },
   methods: {
     onTabChange() {
@@ -289,19 +325,59 @@ export default {
       this.faultActive = true
       this.showFaultDialog = true
     },
-    openFaultEdit(f) {
+    async openFaultEdit(f) {
       this.editingFault = f
       this.faultForm = {
         category_id: f.category_id,
         title: f.title,
         content: f.content,
         product_model: f.product_model,
-        files: Array.isArray(f.files) ? [...f.files] : [],
+        tag_ids: Array.isArray(f.tags) ? f.tags.map(t => t.id) : [],
+        attachments: [],  // 异步加载
         sort_order: f.sort_order || 0,
         status: f.status,
       }
       this.faultActive = f.status !== 'disabled'
       this.showFaultDialog = true
+      // 异步拉附件列表（list 接口不返回 attachments，detail 又未必有缓存）
+      this.loadFaultAttachments(f.id)
+    },
+    async loadFaultAttachments(faultId) {
+      try {
+        const res = await getFaultAttachments(faultId)
+        this.faultForm.attachments = (res.data && res.data.attachments) || []
+      } catch (e) {
+        console.error('加载附件失败', e)
+        this.faultForm.attachments = []
+      }
+    },
+    async loadTags() {
+      try {
+        const res = await listFaultTags()
+        this.availableTags = (res.data && res.data.tags) || []
+      } catch (e) {
+        console.error('加载标签失败', e)
+        this.availableTags = []
+      }
+    },
+    toggleTag(tagId) {
+      const idx = this.faultForm.tag_ids.indexOf(tagId)
+      if (idx >= 0) this.faultForm.tag_ids.splice(idx, 1)
+      else this.faultForm.tag_ids.push(tagId)
+    },
+    formatUploadedTime(iso) {
+      if (!iso) return ''
+      // iso 形如 '2026-09-13T06:29:14'，显示 '09-13 06:29'
+      try {
+        const d = new Date(iso)
+        const mm = String(d.getMonth() + 1).padStart(2, '0')
+        const dd = String(d.getDate()).padStart(2, '0')
+        const hh = String(d.getHours()).padStart(2, '0')
+        const mi = String(d.getMinutes()).padStart(2, '0')
+        return `${mm}-${dd} ${hh}:${mi}`
+      } catch (_) {
+        return iso
+      }
     },
     async saveFault() {
       if (!this.faultForm.title || !this.faultForm.title.trim()) {
@@ -313,13 +389,23 @@ export default {
         return false
       }
       this.faultForm.status = this.faultActive ? 'active' : 'disabled'
+      // P0+P1 重构：不再发 files 字段（附件独立 endpoint 管理）
+      // P1：发 tag_ids 数组
+      const payload = { ...this.faultForm }
+      delete payload.attachments  // 附件走独立 API
       try {
         if (this.editingFault) {
-          await updateFault(this.editingFault.id, this.faultForm)
+          await updateFault(this.editingFault.id, payload)
           this.$toast.success('更新成功')
         } else {
-          await createFault(this.faultForm)
+          const res = await createFault(payload)
           this.$toast.success('创建成功')
+          // P0：新建后立即切到编辑模式，允许上传附件
+          if (res && res.data && res.data.fault && res.data.fault.id) {
+            this.editingFault = res.data.fault
+            // 重新拉一次完整详情，确保 attachments 等字段就位
+            await this.loadFaultAttachments(res.data.fault.id)
+          }
         }
         this.showFaultDialog = false
         this.loadFaults()
@@ -375,60 +461,69 @@ export default {
       return (bytes / 1024 / 1024).toFixed(1) + ' MB'
     },
     async handleFaultFileUpload(fileObj) {
-      // van-uploader 多文件时 fileObj 是数组；单文件是单个对象
+      // 【P0+P1 重构】事务化上传：disk → DB 一体化；新建模式下禁用（必须先保存条目）
+      if (!this.editingFault || !this.editingFault.id) {
+        // 防御性：理论上模板已禁用按钮，这里再保一次
+        this.$toast('请先保存条目，再上传附件')
+        return
+      }
+      const faultId = this.editingFault.id
       const files = Array.isArray(fileObj) ? fileObj : [fileObj]
       for (const item of files) {
         if (!item || !item.file) continue
         item.status = 'uploading'
         item.message = '上传中…'
         try {
-          const res = await uploadFaultFile(item.file)
-          const d = (res && res.data) || {}
-          // 立即保存到 DB（不依赖 dialog 的 save 按钮）
-          if (this.editingFault && this.editingFault.id) {
-            const next = [...this.faultForm.files, {
+          const res = await uploadFaultAttachment(faultId, item.file)
+          const d = (res && res.data && res.data.attachment) || {}
+          // 显式四态：uploading → done
+          item.status = 'done'
+          item.message = '已上传'
+          // 追加到本地 attachments 列表（带审计字段）
+          if (d && d.id) {
+            this.faultForm.attachments.push({
+              id: d.id,
               url: d.url,
               filename: d.filename,
               size: d.size,
-              content_type: d.content_type,
               kind: d.kind,
-            }]
-            await updateFault(this.editingFault.id, { files: next })
-            this.faultForm.files = next
+              mime: d.mime,
+              uploaded_at: d.uploaded_at,
+              uploaded_by: d.uploaded_by,
+              status: 'done',
+            })
           }
-          item.status = 'done'
         } catch (e) {
+          // 显式四态：uploading → failed，附带后端 error
           item.status = 'failed'
           item.message = (e && e.response && e.response.data && e.response.data.error) || '上传失败'
+          this.$toast(item.message)
         }
       }
-      // 同步刷新列表中该条目的 files（不重载整列表）
-      if (this.editingFault && this.editingFault.id) {
-        const idx = this.faults.findIndex(x => x.id === this.editingFault.id)
-        if (idx >= 0) this.faults[idx].files = [...this.faultForm.files]
-      }
     },
-    async removeFaultFile(idx) {
-      const file = this.faultForm.files[idx]
-      if (!file) return
+    async removeFaultFile(attOrIdx) {
+      // attOrIdx 既可能是 number（旧逻辑，faultForm.files 数组下标），
+      // 也可能是 attachment 对象本身（新版，传 att 进来）
+      let att, idx
+      if (typeof attOrIdx === 'number') {
+        idx = attOrIdx
+        att = this.faultForm.attachments[idx]
+      } else {
+        att = attOrIdx
+        idx = this.faultForm.attachments.findIndex(x => x.id === att.id)
+      }
+      if (!att || !att.id) return
       try {
         await this.$dialog.confirm({
           title: '删除确认',
-          message: `确定删除文件「${file.filename}」吗？文件将从服务器彻底删除。`,
+          message: `确定删除文件「${att.filename}」吗？文件将从服务器彻底删除。`,
         })
       } catch (_) {
         return
       }
       try {
-        // 后端 URL 形如 /uploads/faults/<date>/<uuid>.<ext>，去掉前缀
-        const rel = (file.url || '').replace(/^\/uploads\//, '')
-        await deleteFaultFile(rel)
-        this.faultForm.files.splice(idx, 1)
-        if (this.editingFault && this.editingFault.id) {
-          await updateFault(this.editingFault.id, { files: this.faultForm.files })
-          const i = this.faults.findIndex(x => x.id === this.editingFault.id)
-          if (i >= 0) this.faults[i].files = [...this.faultForm.files]
-        }
+        await deleteFaultAttachment(this.editingFault.id, att.id)
+        this.faultForm.attachments.splice(idx, 1)
         this.$toast.success('已删除')
       } catch (e) {
         this.$toast((e && e.response && e.response.data && e.response.data.error) || '删除失败')
@@ -525,6 +620,41 @@ h3 {
   text-align: center;
   color: #9ca3af;
   font-size: 13px;
+}
+.files-empty-locked {
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-size: 12px;
+  margin: 8px 0;
+}
+.file-time {
+  color: #9ca3af;
+  font-size: 11px;
+}
+.status-tag {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  margin-right: 4px;
+  font-weight: 500;
+}
+.status-uploading { background: #fef3c7; color: #92400e; }
+.status-failed    { background: #fee2e2; color: #b91c1c; }
+.status-done      { background: #d1fae5; color: #065f46; }
+.fault-tags {
+  margin: 12px 16px;
+}
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.tag-chip {
+  cursor: pointer;
 }
 .file-row {
   display: flex;

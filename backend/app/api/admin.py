@@ -5,7 +5,9 @@ from app.services.auth_service import login_required, role_required, permission_
 from app.models.user import User
 from app.models.service_point import ServicePoint, Engineer
 from app.models.work_order import OrderStatusLog, WorkOrder
-from app.models.common_fault import FaultCategory, CommonFault
+from app.models.common_fault import (
+    FaultCategory, CommonFault, FaultAttachment, FaultRevision, FaultTag,
+)
 from app.models.product import Product
 from app.models.system import SystemConfig, LegacyRolePermission
 from app.models.rbac import Permission as RbacPermission, Role as RbacRole, RolePermission as RbacRolePermission, UserRole as RbacUserRole
@@ -1000,44 +1002,124 @@ def delete_fault_category(cat_id):
 @login_required
 @permission_required('fault:view')
 def get_all_faults():
+    """后台故障列表
+    - ?keyword=xxx    LIKE 模糊匹配（保留老逻辑）
+    - ?q=xxx          FULLTEXT 搜索（MySQL 8.0+，匹配 title+content）
+    - ?category_id=N  按分类过滤
+    - ?tag_id=N       按标签过滤（JOIN common_fault_tag_map）
+    """
     keyword = request.args.get('keyword')
+    q_fulltext = request.args.get('q')
     cat_id = request.args.get('category_id', type=int)
+    tag_id = request.args.get('tag_id', type=int)
     query = CommonFault.query
+
     if cat_id:
         query = query.filter_by(category_id=cat_id)
+    if tag_id:
+        query = query.join(CommonFault.tags).filter(FaultTag.id == tag_id)
     if keyword:
-        query = query.filter(db.or_(CommonFault.title.like(f'%{keyword}%'), CommonFault.content.like(f'%{keyword}%')))
-    faults = query.order_by(CommonFault.sort_order).all()
-    return jsonify({'faults': [f.to_dict() for f in faults]})
+        query = query.filter(db.or_(
+            CommonFault.title.like(f'%{keyword}%'),
+            CommonFault.content.like(f'%{keyword}%'),
+        ))
+    elif q_fulltext:
+        # FULLTEXT MATCH...AGAINST 需 4 字符以上才有效；短查询自动 fallback 到 LIKE
+        if len(q_fulltext.strip()) >= 4:
+            query = query.filter(db.text(
+                "MATCH(common_faults.title, common_faults.content) "
+                "AGAINST(:q IN BOOLEAN MODE)"
+            ).bindparams(q=f'*{q_fulltext}*'))
+        else:
+            query = query.filter(db.or_(
+                CommonFault.title.like(f'%{q_fulltext}%'),
+                CommonFault.content.like(f'%{q_fulltext}%'),
+            ))
+
+    faults = query.order_by(CommonFault.sort_order, CommonFault.id.desc()).all()
+    return jsonify({'faults': [f.to_dict(with_attachments=False, with_tags=True) for f in faults]})
+
+
+@bp.route('/admin/faults/<int:fault_id>', methods=['GET'])
+@login_required
+@permission_required('fault:view')
+def get_fault_detail(fault_id):
+    """单个故障详情（含 attachments + tags）"""
+    fault = CommonFault.query.get_or_404(fault_id)
+    return jsonify({'fault': fault.to_dict(with_attachments=True, with_tags=True)})
+
 
 @bp.route('/admin/faults', methods=['POST'])
 @login_required
 @permission_required('fault:create')
 @role_required('admin','operator')
 def create_fault():
+    """创建故障条目（P0+P1 重构后）：
+    - 自动设 created_by = 当前用户
+    - 不再接受 files 字段（附件走独立 attachments endpoint）
+    - 支持 tag_ids 数组
+    """
     data = request.get_json()
     fault = CommonFault(
-        category_id=data['category_id'], title=data['title'], content=data.get('content'),
-        product_model=data.get('product_model'), images=data.get('images'),
-        files=data.get('files') or [],
-        sort_order=data.get('sort_order', 0)
+        category_id=data['category_id'],
+        title=data['title'],
+        content=data.get('content'),
+        product_model=data.get('product_model'),
+        images=data.get('images'),
+        sort_order=data.get('sort_order', 0),
+        status=data.get('status', 'active'),
+        created_by=getattr(g, 'current_user_id', None),
     )
     db.session.add(fault)
+    db.session.flush()  # 拿到 fault.id
+
+    # 标签关联
+    tag_ids = data.get('tag_ids') or []
+    if tag_ids:
+        valid_tags = FaultTag.query.filter(FaultTag.id.in_(tag_ids)).all()
+        fault.tags = valid_tags
+
     db.session.commit()
-    return jsonify({'message': '创建成功', 'fault': fault.to_dict()})
+
+    # 创建第一个版本快照
+    _snapshot_fault_revision(fault, change_note='创建条目', created_by=fault.created_by)
+
+    return jsonify({'message': '创建成功', 'fault': fault.to_dict(with_attachments=True, with_tags=True)})
+
 
 @bp.route('/admin/faults/<int:fault_id>', methods=['PUT'])
 @login_required
 @permission_required('fault:edit')
 @role_required('admin','operator')
 def update_fault(fault_id):
+    """更新故障条目（P0+P1 重构后）：
+    - 自动设 updated_by = 当前用户
+    - 不再处理 files 字段
+    - 支持 tag_ids 数组（整体替换）
+    - 自动创建版本快照（带 change_note）
+    """
     fault = CommonFault.query.get_or_404(fault_id)
     data = request.get_json()
-    for k in ['category_id','title','content','product_model','images','files','sort_order','status']:
+    for k in ['category_id', 'title', 'content', 'product_model', 'images', 'sort_order', 'status']:
         if k in data:
-            setattr(fault, k, data[k] if k != 'files' else (data[k] or []))
+            setattr(fault, k, data[k])
+    fault.updated_by = getattr(g, 'current_user_id', None)
+
+    if 'tag_ids' in data:
+        tag_ids = data.get('tag_ids') or []
+        fault.tags = FaultTag.query.filter(FaultTag.id.in_(tag_ids)).all() if tag_ids else []
+
     db.session.commit()
-    return jsonify({'message': '更新成功', 'fault': fault.to_dict()})
+
+    # 版本快照（每次更新一份）
+    _snapshot_fault_revision(
+        fault,
+        change_note=data.get('change_note'),
+        created_by=fault.updated_by,
+    )
+
+    return jsonify({'message': '更新成功', 'fault': fault.to_dict(with_attachments=True, with_tags=True)})
+
 
 @bp.route('/admin/faults/<int:fault_id>', methods=['DELETE'])
 @login_required
@@ -1046,8 +1128,94 @@ def update_fault(fault_id):
 def delete_fault(fault_id):
     fault = CommonFault.query.get_or_404(fault_id)
     fault.status = 'disabled'
+    fault.updated_by = getattr(g, 'current_user_id', None)
     db.session.commit()
-    return jsonify({'message': '已删除'})
+    return jsonify({'message': '已停用', 'fault_id': fault_id})
+
+
+# ========== 故障标签（P1） ==========
+
+@bp.route('/admin/fault-tags', methods=['GET'])
+@login_required
+@permission_required('fault:view')
+def list_fault_tags():
+    tags = FaultTag.query.order_by(FaultTag.id).all()
+    return jsonify({'tags': [t.to_dict() for t in tags]})
+
+
+@bp.route('/admin/fault-tags', methods=['POST'])
+@login_required
+@permission_required('fault:edit')
+@role_required('admin','operator')
+def create_fault_tag():
+    data = request.get_json()
+    if not data.get('name') or not data.get('slug'):
+        return jsonify({'error': 'name 和 slug 必填'}), 400
+    if FaultTag.query.filter_by(slug=data['slug']).first():
+        return jsonify({'error': 'slug 已存在'}), 400
+    tag = FaultTag(
+        name=data['name'],
+        slug=data['slug'],
+        color=data.get('color', '#909399'),
+    )
+    db.session.add(tag)
+    db.session.commit()
+    return jsonify({'message': '创建成功', 'tag': tag.to_dict()}), 201
+
+
+@bp.route('/admin/fault-tags/<int:tag_id>', methods=['DELETE'])
+@login_required
+@permission_required('fault:edit')
+@role_required('admin','operator')
+def delete_fault_tag(tag_id):
+    tag = FaultTag.query.get_or_404(tag_id)
+    db.session.delete(tag)  # FK ON DELETE CASCADE 自动清 tag_map
+    db.session.commit()
+    return jsonify({'message': '已删除', 'tag_id': tag_id})
+
+
+# ========== 故障版本历史（P1） ==========
+
+@bp.route('/admin/faults/<int:fault_id>/revisions', methods=['GET'])
+@login_required
+@permission_required('fault:view')
+def list_fault_revisions(fault_id):
+    """列出某故障的全部版本（不含 snapshot 大字段）"""
+    if not CommonFault.query.get(fault_id):
+        return jsonify({'error': '故障不存在'}), 404
+    revs = FaultRevision.query.filter_by(fault_id=fault_id)\
+        .order_by(FaultRevision.version.desc()).all()
+    return jsonify({'revisions': [r.to_dict() for r in revs]})
+
+
+@bp.route('/admin/faults/<int:fault_id>/revisions/<int:version>', methods=['GET'])
+@login_required
+@permission_required('fault:view')
+def get_fault_revision(fault_id, version):
+    """获取某版本的完整 snapshot（含 attachments）"""
+    rev = FaultRevision.query.filter_by(fault_id=fault_id, version=version).first_or_404()
+    d = rev.to_dict()
+    d['snapshot'] = rev.snapshot
+    return jsonify({'revision': d})
+
+
+# ========== 内部辅助 ==========
+
+def _snapshot_fault_revision(fault, change_note=None, created_by=None):
+    """为故障生成版本快照（含 attachments + tags）"""
+    last = FaultRevision.query.filter_by(fault_id=fault.id)\
+        .order_by(FaultRevision.version.desc()).first()
+    next_version = (last.version + 1) if last else 1
+    snapshot = fault.to_dict(with_attachments=True, with_tags=True)
+    rev = FaultRevision(
+        fault_id=fault.id,
+        version=next_version,
+        snapshot=snapshot,
+        change_note=change_note,
+        created_by=created_by or getattr(g, 'current_user_id', None),
+    )
+    db.session.add(rev)
+    db.session.commit()
 
 # ========== 系统配置 ==========
 @bp.route('/admin/config/<key>', methods=['GET'])

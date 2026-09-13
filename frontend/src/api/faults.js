@@ -37,3 +37,10 @@ export function getFaultCategories() {
 export function getFaultsByCategory(categoryId) {
   return api.get('/faults', { params: { category_id: categoryId } })
 }
+
+// P0+P1 重构后，手机端 data source 从 fault.files 改为 fault.attachments
+// 后端 CommonFault.to_dict() 默认已包含 attachments 列表，无需单独 endpoint
+// 此函数保留供「按需刷新某故障的附件」场景使用
+export function getFaultAttachments(faultId) {
+  return api.get(`/admin/faults/${faultId}/attachments`)
+}

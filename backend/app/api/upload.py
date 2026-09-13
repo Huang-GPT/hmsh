@@ -1,19 +1,23 @@
-"""文件上传接口
-   - 路径: POST /api/upload/media   (图片，仅 jpg/png/... — 工单/用户头像等)
-   - 路径: POST /api/upload/fault   (常见故障文件 — PDF/DOC/DOCX/图片)
-   - 表单: file=<binary>
-   - 返回: { url, filename, size, content_type, kind }
-   - 存储: <UPLOAD_DIR>/<yyyy-mm-dd>/<uuid>.<ext>
-   - 访问: /uploads/<yyyy-mm-dd>/<uuid>.<ext>
+"""文件上传接口（行业标准 P0+P1 重构 2026-09）
+   - 路径: POST /api/upload/media         (图片 — 工单/用户头像等，独立保存)
+   - 路径: POST /api/upload/fault         (常见故障文件 — 兼容老接口，单独写文件不入库)
+   - 路径: POST /api/admin/faults/<id>/attachments   (新 — 事务化上传：disk→DB→失败回滚)
+   - 路径: GET  /api/admin/faults/<id>/attachments   (列出故障附件)
+   - 路径: DELETE /api/admin/faults/<id>/attachments/<att_id>  (软删+清文件)
+   - 路径: GET  /api/uploads/<path:filename>          (静态访问)
+   - 存储: <UPLOAD_DIR>/<kind>/<yyyy-mm-dd>/<uuid>.<ext>
    - 视频上传已禁用（节省磁盘空间）
 """
 import os
 import uuid
-from datetime import datetime
-from flask import request, jsonify, current_app, send_from_directory
+from datetime import datetime, timedelta
+from flask import request, jsonify, current_app, send_from_directory, g
+from sqlalchemy import text
 
 from app.api import bp
+from app import db
 from app.services.auth_service import login_required, permission_required
+from app.models.common_fault import FaultAttachment, CommonFault
 
 
 # 允许的图片扩展名（视频格式不允许上传）
@@ -27,6 +31,9 @@ ALLOWED_VIDEO = {'mp4', 'mov', 'avi', 'mkv', 'webm', '3gp', 'm4v'}
 IMAGE_MAX_SIZE = 10 * 1024 * 1024     # 10MB — 图片
 FAULT_MAX_SIZE = 20 * 1024 * 1024     # 20MB — 故障文件（PDF 文档可能较大）
 
+# 故障附件软删保留天数（NULL deleted_at 期间可恢复；超过保留期 hard-delete）
+ATTACHMENT_SOFT_DELETE_RETENTION_DAYS = 30
+
 
 def _ext_ok(filename, allowed):
     if '.' not in filename:
@@ -34,40 +41,65 @@ def _ext_ok(filename, allowed):
     return filename.rsplit('.', 1)[1].lower() in allowed
 
 
-def _save_path(ext):
-    """生成按日期分目录的存储路径，返回 (rel_path, abs_path)"""
-    base = current_app.config.get('UPLOAD_DIR') or os.path.join(
+def _upload_base():
+    return current_app.config.get('UPLOAD_DIR') or os.path.join(
         os.path.dirname(current_app.root_path), 'uploads'
     )
+
+
+def _save_path_by_kind(kind, ext):
+    """按 kind 生成按日期分目录的存储路径，返回 (rel_path, abs_path)
+       kind: 'media' (工单图片) | 'fault' (故障附件) | 其他
+    """
+    base = _upload_base()
     date_dir = datetime.now().strftime('%Y-%m-%d')
-    target_dir = os.path.join(base, date_dir)
+    if kind == 'fault':
+        target_dir = os.path.join(base, 'faults', date_dir)
+    else:
+        target_dir = os.path.join(base, date_dir)
     os.makedirs(target_dir, exist_ok=True)
-    filename = f"{uuid.uuid4().hex}.{ext}"
-    return f"{date_dir}/{filename}", os.path.join(target_dir, filename)
+    fname = f"{uuid.uuid4().hex}.{ext}"
+    rel_path = f"{kind}/{date_dir}/{fname}" if kind == 'fault' else f"{date_dir}/{fname}"
+    return rel_path, os.path.join(target_dir, fname)
+
+
+def _infer_kind_and_mime(ext, mimetype):
+    """根据扩展名推断 kind + mime；返回 (kind, mime)"""
+    mime = mimetype or ''
+    ext = ext.lower()
+    if ext in ('jpg', 'jpeg'):
+        return 'image', mime or 'image/jpeg'
+    if ext == 'png':
+        return 'image', mime or 'image/png'
+    if ext == 'pdf':
+        return 'pdf', mime or 'application/pdf'
+    if ext == 'doc':
+        return 'doc', mime or 'application/msword'
+    if ext == 'docx':
+        return 'docx', mime or 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    return 'file', mime or 'application/octet-stream'
 
 
 @bp.route('/upload/media', methods=['POST'])
 @login_required
 def upload_media():
+    """工单/头像图片上传（独立保存，不入库故障附件）"""
     if 'file' not in request.files:
         return jsonify({'error': '请选择文件'}), 400
     f = request.files['file']
     if not f or not f.filename:
         return jsonify({'error': '文件为空'}), 400
 
-    # 拒绝所有视频上传（系统不再支持视频功能）
     if _ext_ok(f.filename, ALLOWED_VIDEO):
         return jsonify({
             'error': '系统暂不支持视频上传（节省磁盘空间），请改用图片',
         }), 400
 
-    # 默认按图片处理
     if not _ext_ok(f.filename, ALLOWED_IMAGE):
         return jsonify({
             'error': f'不支持的图片格式，仅允许：{", ".join(sorted(ALLOWED_IMAGE))}',
         }), 400
 
-    # 单文件大小限制：图片 10MB（视频参数已废除）
     f.seek(0, os.SEEK_END)
     size = f.tell()
     f.seek(0)
@@ -75,7 +107,7 @@ def upload_media():
         return jsonify({'error': f'文件超过 {IMAGE_MAX_SIZE // (1024*1024)} MB 限制'}), 400
 
     ext = f.filename.rsplit('.', 1)[1].lower()
-    rel_path, abs_path = _save_path(ext)
+    rel_path, abs_path = _save_path_by_kind('media', ext)
     f.save(abs_path)
 
     return jsonify({
@@ -91,9 +123,9 @@ def upload_media():
 @login_required
 @permission_required('fault:edit')
 def upload_fault():
-    """常见故障文件上传 — 后台 AdminFaults 专用
-       支持: PDF / DOC (Office 2003) / DOCX (Office 2007) / 图片 (jpg/png/jpeg)
-       存储在 <UPLOAD_DIR>/faults/<yyyy-mm-dd>/<uuid>.<ext> 子目录下便于清理。
+    """【兼容老接口】常见故障文件独立上传 — 只写文件不入库
+       ⚠️ 新代码请用 POST /api/admin/faults/<id>/attachments（事务化）。
+       此接口保留用于「暂存」场景：管理员先上传文件占位，再绑定到具体故障条目。
     """
     if 'file' not in request.files:
         return jsonify({'error': '请选择文件'}), 400
@@ -101,16 +133,11 @@ def upload_fault():
     if not f or not f.filename:
         return jsonify({'error': '文件为空'}), 400
 
-    # 拒绝视频
     if _ext_ok(f.filename, ALLOWED_VIDEO):
-        return jsonify({
-            'error': '常见故障不支持视频文件，请改用 PDF / Word / 图片',
-        }), 400
+        return jsonify({'error': '常见故障不支持视频文件，请改用 PDF / Word / 图片'}), 400
 
     if not _ext_ok(f.filename, ALLOWED_FAULT):
-        return jsonify({
-            'error': f'不支持的文件格式，仅允许：{", ".join(sorted(ALLOWED_FAULT))}',
-        }), 400
+        return jsonify({'error': f'不支持的文件格式，仅允许：{", ".join(sorted(ALLOWED_FAULT))}'}), 400
 
     f.seek(0, os.SEEK_END)
     size = f.tell()
@@ -119,58 +146,114 @@ def upload_fault():
         return jsonify({'error': f'文件超过 {FAULT_MAX_SIZE // (1024*1024)} MB 限制'}), 400
 
     ext = f.filename.rsplit('.', 1)[1].lower()
-    # fault 文件单独放子目录（<UPLOAD_DIR>/faults/<date>/）
-    base = current_app.config.get('UPLOAD_DIR') or os.path.join(
-        os.path.dirname(current_app.root_path), 'uploads'
-    )
-    date_dir = datetime.now().strftime('%Y-%m-%d')
-    target_dir = os.path.join(base, 'faults', date_dir)
-    os.makedirs(target_dir, exist_ok=True)
-    filename = f"{uuid.uuid4().hex}.{ext}"
-    rel_path = f"faults/{date_dir}/{filename}"
-    abs_path = os.path.join(target_dir, filename)
+    rel_path, abs_path = _save_path_by_kind('fault', ext)
     f.save(abs_path)
 
-    # 推断 content_type（手机端据此决定 browser-open vs download）
-    mime = f.mimetype or ''
-    if ext in ('jpg', 'jpeg'):
-        mime = mime or 'image/jpeg'
-        kind = 'image'
-    elif ext == 'png':
-        mime = mime or 'image/png'
-        kind = 'image'
-    elif ext == 'pdf':
-        mime = mime or 'application/pdf'
-        kind = 'pdf'
-    elif ext == 'doc':
-        mime = mime or 'application/msword'
-        kind = 'doc'
-    elif ext == 'docx':
-        mime = mime or 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        kind = 'docx'
-    else:
-        kind = 'file'
-
+    kind, mime = _infer_kind_and_mime(ext, f.mimetype)
     return jsonify({
         'url': f'/uploads/{rel_path}',
         'filename': f.filename,
         'size': size,
         'content_type': mime,
         'kind': kind,
+        '_deprecated': '请改用 POST /api/admin/faults/<id>/attachments',
     })
+
+
+# ========== 新：故障附件事务化 CRUD（行业标准 P0 重构） ==========
+
+@bp.route('/admin/faults/<int:fault_id>/attachments', methods=['POST'])
+@login_required
+@permission_required('fault:edit')
+def create_fault_attachment(fault_id):
+    """事务化上传故障附件：disk → DB → 失败自动清孤儿文件"""
+    fault = CommonFault.query.get_or_404(fault_id)
+
+    if 'file' not in request.files:
+        return jsonify({'error': '请选择文件'}), 400
+    f = request.files['file']
+    if not f or not f.filename:
+        return jsonify({'error': '文件为空'}), 400
+
+    if _ext_ok(f.filename, ALLOWED_VIDEO):
+        return jsonify({'error': '常见故障不支持视频文件'}), 400
+    if not _ext_ok(f.filename, ALLOWED_FAULT):
+        return jsonify({'error': f'不支持的文件格式，仅允许：{", ".join(sorted(ALLOWED_FAULT))}'}), 400
+
+    f.seek(0, os.SEEK_END)
+    size = f.tell()
+    f.seek(0)
+    if size > FAULT_MAX_SIZE:
+        return jsonify({'error': f'文件超过 {FAULT_MAX_SIZE // (1024*1024)} MB 限制'}), 400
+
+    ext = f.filename.rsplit('.', 1)[1].lower()
+    kind, mime = _infer_kind_and_mime(ext, f.mimetype)
+
+    # 1. 写磁盘
+    rel_path, abs_path = _save_path_by_kind('fault', ext)
+    try:
+        f.save(abs_path)
+    except Exception as e:
+        return jsonify({'error': f'文件保存失败: {e}'}), 500
+
+    # 2. 写 DB；失败则删磁盘文件回滚
+    try:
+        att = FaultAttachment(
+            fault_id=fault_id,
+            filename=f.filename,
+            url=f'/uploads/{rel_path}',
+            size=size,
+            mime=mime,
+            kind=kind,
+            uploaded_by=getattr(g, 'current_user_id', None),
+        )
+        db.session.add(att)
+        db.session.commit()
+    except Exception as e:
+        try:
+            os.remove(abs_path)
+        except OSError:
+            pass
+        db.session.rollback()
+        return jsonify({'error': f'数据库写入失败，文件已清理: {e}'}), 500
+
+    return jsonify({'message': '上传成功', 'attachment': att.to_dict()}), 201
+
+
+@bp.route('/admin/faults/<int:fault_id>/attachments', methods=['GET'])
+@login_required
+@permission_required('fault:view')
+def list_fault_attachments(fault_id):
+    """列出故障的所有附件（含软删；前端可按 deleted_at 过滤）"""
+    include_deleted = request.args.get('include_deleted', 'false').lower() == 'true'
+    q = FaultAttachment.query.filter_by(fault_id=fault_id)
+    if not include_deleted:
+        q = q.filter(FaultAttachment.deleted_at.is_(None))
+    rows = q.order_by(FaultAttachment.sort_order, FaultAttachment.id).all()
+    return jsonify({'attachments': [a.to_dict() for a in rows]})
+
+
+@bp.route('/admin/faults/<int:fault_id>/attachments/<int:att_id>', methods=['DELETE'])
+@login_required
+@permission_required('fault:edit')
+def soft_delete_fault_attachment(fault_id, att_id):
+    """软删附件（设 deleted_at）；物理删除由 cleanup CLI 在保留期后执行"""
+    att = FaultAttachment.query.filter_by(fault_id=fault_id, id=att_id).first_or_404()
+    if att.deleted_at is not None:
+        return jsonify({'error': '附件已被删除'}), 400
+    att.deleted_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'message': '已删除', 'attachment': att.to_dict()})
 
 
 @bp.route('/upload/fault/<filename>', methods=['DELETE'])
 @login_required
 @permission_required('fault:edit')
 def delete_fault_file(filename):
-    """删除已上传的常见故障文件（仅限 faults/ 子目录下）
-       防止误删其他上传文件。
+    """【兼容老接口】按文件名直接删 faults/ 下的文件（无 DB 关联）
+       ⚠️ 新代码请用 DELETE /api/admin/faults/<id>/attachments/<att_id>。
     """
-    base = current_app.config.get('UPLOAD_DIR') or os.path.join(
-        os.path.dirname(current_app.root_path), 'uploads'
-    )
-    # 路径安全：filename 不允许包含 .. 或 /，避免目录穿越
+    base = _upload_base()
     if '/' in filename or '\\' in filename or '..' in filename:
         return jsonify({'error': '非法的文件名'}), 400
     abs_path = os.path.join(base, 'faults', filename)
@@ -185,24 +268,19 @@ def delete_fault_file(filename):
 
 @bp.route('/uploads/<path:filename>', methods=['GET'])
 def serve_upload(filename):
-    """提供上传文件的公开访问（图片/视频）
-       注意：后端可能仍有历史视频文件，前端已不展示；
-       若需彻底删除视频文件，服务器跑 cleanup 脚本
+    """提供上传文件的公开访问（图片/文档/历史视频）
+       注意：系统已不展示视频文件；老视频由 cleanup-videos 清理。
     """
-    base = current_app.config.get('UPLOAD_DIR') or os.path.join(
-        os.path.dirname(current_app.root_path), 'uploads'
-    )
+    base = _upload_base()
     return send_from_directory(base, filename, as_attachment=False)
 
 
-# CLI 工具：清理历史视频文件（节省磁盘）
+# ========== CLI 工具 ==========
+
 @bp.cli.command('cleanup-videos')
 def cleanup_videos():
-    """清理 /app/uploads 下的所有视频文件，输出释放空间"""
-    from flask import current_app
-    base = current_app.config.get('UPLOAD_DIR') or os.path.join(
-        os.path.dirname(current_app.root_path), 'uploads'
-    )
+    """清理 /app/uploads 下的所有视频文件（节省磁盘）"""
+    base = _upload_base()
     video_exts = tuple(ALLOWED_VIDEO)
     deleted = 0
     freed = 0
@@ -221,3 +299,85 @@ def cleanup_videos():
                 except Exception as e:
                     print(f"[cleanup-videos] 删除失败: {fp} - {e}")
     print(f"[cleanup-videos] 删除 {deleted} 个视频文件，释放 {freed / 1024 / 1024:.2f} MB")
+
+
+@bp.cli.command('cleanup-orphan-attachments')
+def cleanup_orphan_attachments():
+    """清理 common_fault_attachments 中的孤儿：
+       1. 软删超过保留期的 → 物理删文件 + hard-delete 行
+       2. DB 行存在但磁盘文件丢失 → 标记 deleted_at
+    """
+    base = _upload_base()
+    cutoff = datetime.utcnow() - timedelta(days=ATTACHMENT_SOFT_DELETE_RETENTION_DAYS)
+
+    # 1. 软删超期 → 物理删
+    stale = FaultAttachment.query.filter(
+        FaultAttachment.deleted_at.isnot(None),
+        FaultAttachment.deleted_at < cutoff,
+    ).all()
+    hard_deleted = 0
+    freed = 0
+    for att in stale:
+        try:
+            rel = att.url.replace('/uploads/', '', 1)
+            fp = os.path.join(base, rel)
+            if os.path.isfile(fp):
+                freed += os.path.getsize(fp)
+                os.remove(fp)
+            db.session.delete(att)
+            hard_deleted += 1
+        except Exception as e:
+            print(f"[cleanup-orphans] hard-delete failed: {att.id} - {e}")
+    if hard_deleted:
+        db.session.commit()
+
+    # 2. DB 行存在但磁盘文件丢失 → 标记 deleted_at（避免前端 404）
+    missing = FaultAttachment.query.filter(FaultAttachment.deleted_at.is_(None)).all()
+    marked = 0
+    for att in missing:
+        rel = att.url.replace('/uploads/', '', 1)
+        fp = os.path.join(base, rel)
+        if not os.path.isfile(fp):
+            att.deleted_at = datetime.utcnow()
+            marked += 1
+    if marked:
+        db.session.commit()
+
+    print(f"[cleanup-orphans] hard-deleted {hard_deleted} stale attachments (freed {freed / 1024 / 1024:.2f} MB), "
+          f"marked {marked} missing-on-disk as soft-deleted")
+
+
+@bp.cli.command('cleanup-orphan-files')
+def cleanup_orphan_files():
+    """清理磁盘孤儿：faults/ 下的文件没有 DB 行引用（来自早期 /upload/fault 接口）
+       注意：会扫描所有日期子目录，按 filename UUID 查 DB。
+    """
+    base = os.path.join(_upload_base(), 'faults')
+    if not os.path.isdir(base):
+        print(f"[cleanup-orphan-files] {base} 不存在，跳过")
+        return
+    # 收集 DB 中所有 url 末段 filename
+    rows = db.session.execute(text(
+        "SELECT url FROM common_fault_attachments WHERE deleted_at IS NULL"
+    )).fetchall()
+    referenced = set()
+    for (url,) in rows:
+        if url and url.startswith('/uploads/faults/'):
+            referenced.add(os.path.basename(url))
+
+    deleted = 0
+    freed = 0
+    for date_dir in os.listdir(base):
+        date_path = os.path.join(base, date_dir)
+        if not os.path.isdir(date_path):
+            continue
+        for fn in os.listdir(date_path):
+            if fn not in referenced:
+                fp = os.path.join(date_path, fn)
+                try:
+                    freed += os.path.getsize(fp)
+                    os.remove(fp)
+                    deleted += 1
+                except Exception as e:
+                    print(f"[cleanup-orphan-files] delete failed: {fp} - {e}")
+    print(f"[cleanup-orphan-files] deleted {deleted} orphan files, freed {freed / 1024 / 1024:.2f} MB")

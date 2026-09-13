@@ -55,15 +55,15 @@
           <div v-if="grp.faultTitle" class="fault-title">{{ grp.faultTitle }}</div>
           <van-cell-group>
             <van-cell
-              v-for="f in grp.files"
-              :key="f.url"
-              :title="f.filename"
-              :label="`${fileKindLabel(f)} · ${formatSize(f.size)}`"
+              v-for="att in grp.attachments"
+              :key="att.id || att.url"
+              :title="att.filename"
+              :label="`${fileKindLabel(att)} · ${formatSize(att.size)}`"
               is-link
-              @click="openFile(f)"
+              @click="openFile(att)"
             >
               <template #icon>
-                <van-icon :name="fileIcon(f)" :color="fileColor(f)" size="22" class="file-cell-icon" />
+                <van-icon :name="fileIcon(att)" :color="fileColor(att)" size="22" class="file-cell-icon" />
               </template>
             </van-cell>
           </van-cell-group>
@@ -94,27 +94,27 @@ export default {
       if (!kw) return this.categories
       return this.categories.filter(c => (c.name || '').toLowerCase().includes(kw))
     },
-    /** 把 CommonFault 条目展平成单层文件数组 */
+    /** 把 CommonFault 条目展平成单层文件数组（P0+P1 重构：来源 attachments 表） */
     flatFiles() {
       const out = []
       for (const f of this.faults) {
-        if (Array.isArray(f.files)) {
-          for (const file of f.files) {
-            out.push({ ...file, _faultTitle: f.title, _faultId: f.id })
+        if (Array.isArray(f.attachments) && f.attachments.length) {
+          for (const att of f.attachments) {
+            out.push({ ...att, _faultTitle: f.title, _faultId: f.id })
           }
         }
       }
       return out
     },
-    /** 按 fault 分组的文件列表（每个故障一个 cell-group） */
+    /** 按 fault 分组的文件列表（每个故障一个 cell-group，P0+P1 数据源 attachments） */
     groupedFiles() {
       const out = []
       for (const f of this.faults) {
-        if (Array.isArray(f.files) && f.files.length) {
+        if (Array.isArray(f.attachments) && f.attachments.length) {
           out.push({
             faultId: f.id,
             faultTitle: f.title,
-            files: f.files,
+            attachments: f.attachments,
           })
         }
       }
@@ -155,8 +155,8 @@ export default {
       this.faults = []
     },
     fileCountOf(cat) {
-      // 分类列表返回时不带 count（admin 接口才有）— 用文件名打 0 占位
-      // 简化：客户端不过度依赖计数
+      // 后端 customer_fault_categories 已返回 attachment_count（P1 重构）
+      if (cat && typeof cat.attachment_count === 'number') return cat.attachment_count
       return '—'
     },
     fileExt(file) {

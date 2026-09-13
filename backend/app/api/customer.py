@@ -199,16 +199,80 @@ def cancel_order(order_id):
 @bp.route('/customer/fault-categories', methods=['GET'])
 @login_required
 def customer_fault_categories():
-    cats = FaultCategory.query.filter_by(status='active', parent_id=0).order_by(FaultCategory.sort_order).all()
+    """P0+P1 重构：每个分类返回 fault_count + attachment_count（P1 加分）
+    使用单次聚合查询，避免 N+1。
+    """
+    from sqlalchemy import func
+    from app.models.common_fault import FaultAttachment
+
+    cats = FaultCategory.query.filter_by(status='active', parent_id=0)\
+        .order_by(FaultCategory.sort_order).all()
+    cat_ids = [c.id for c in cats]
+    # 子分类 id 也要算进去（手机端点击顶级分类时也展示二级）
+    children_map = {}
+    if cat_ids:
+        children = FaultCategory.query.filter(
+            FaultCategory.parent_id.in_(cat_ids),
+            FaultCategory.status == 'active',
+        ).all()
+        for ch in children:
+            children_map.setdefault(ch.parent_id, []).append(ch.id)
+
+    # 一次聚合：每个 cat_id 下的 active fault 数 + active attachment 数
+    all_cat_ids = set(cat_ids) | {cid for ids in children_map.values() for cid in ids}
+    fault_count = {}
+    att_count = {}
+    if all_cat_ids:
+        rows = db.session.query(
+            CommonFault.category_id,
+            func.count(CommonFault.id),
+        ).filter(
+            CommonFault.category_id.in_(all_cat_ids),
+            CommonFault.status == 'active',
+        ).group_by(CommonFault.category_id).all()
+        fault_count = {cid: cnt for cid, cnt in rows}
+
+        rows2 = db.session.query(
+            CommonFault.category_id,
+            func.count(FaultAttachment.id),
+        ).join(
+            FaultAttachment,
+            db.and_(
+                FaultAttachment.fault_id == CommonFault.id,
+                FaultAttachment.deleted_at.is_(None),
+            ),
+        ).filter(
+            CommonFault.category_id.in_(all_cat_ids),
+            CommonFault.status == 'active',
+        ).group_by(CommonFault.category_id).all()
+        att_count = {cid: cnt for cid, cnt in rows2}
+
     result = []
     for cat in cats:
-        children = FaultCategory.query.filter_by(parent_id=cat.id, status='active').order_by(FaultCategory.sort_order).all()
-        result.append({**cat.to_dict(), 'children': [c.to_dict() for c in children]})
+        d = cat.to_dict()
+        ch_ids = children_map.get(cat.id, [])
+        # 顶级分类的计数 = 自己 + 所有子分类
+        total_faults = fault_count.get(cat.id, 0) + sum(fault_count.get(c, 0) for c in ch_ids)
+        total_atts = att_count.get(cat.id, 0) + sum(att_count.get(c, 0) for c in ch_ids)
+        d['fault_count'] = int(total_faults)
+        d['attachment_count'] = int(total_atts)
+        d['children'] = []
+        for ch in FaultCategory.query.filter_by(parent_id=cat.id, status='active')\
+                .order_by(FaultCategory.sort_order).all():
+            cd = ch.to_dict()
+            cd['fault_count'] = int(fault_count.get(ch.id, 0))
+            cd['attachment_count'] = int(att_count.get(ch.id, 0))
+            d['children'].append(cd)
+        result.append(d)
     return jsonify({'categories': result})
+
 
 @bp.route('/customer/faults', methods=['GET'])
 @login_required
 def customer_faults():
+    """P0+P1 重构：to_dict 默认含 attachments 列表（来自 common_fault_attachments 关系）
+    手机端可同时读 attachments[]（新）和 files[]（兼容老数据，迁移后为空数组）。
+    """
     cat_id = request.args.get('category_id', type=int)
     model = request.args.get('product_model')
     query = CommonFault.query.filter_by(status='active')
@@ -217,7 +281,8 @@ def customer_faults():
     if model:
         query = query.filter(db.or_(CommonFault.product_model == model, CommonFault.product_model.is_(None)))
     faults = query.order_by(CommonFault.sort_order).all()
-    return jsonify({'faults': [f.to_dict() for f in faults]})
+    return jsonify({'faults': [f.to_dict(with_attachments=True) for f in faults]})
+
 
 @bp.route('/customer/faults/<int:fault_id>', methods=['GET'])
 @login_required
@@ -225,7 +290,7 @@ def customer_fault_detail(fault_id):
     fault = CommonFault.query.get_or_404(fault_id)
     fault.view_count += 1
     db.session.commit()
-    return jsonify({'fault': fault.to_dict()})
+    return jsonify({'fault': fault.to_dict(with_attachments=True)})
 
 # ========== 客服电话 ==========
 @bp.route('/customer/service-phone', methods=['GET'])

@@ -203,6 +203,8 @@ export function deleteFault(faultId) {
 
 // ========== 常见故障文件上传（PDF/DOC/DOCX/图片） ==========
 export function uploadFaultFile(file, onProgress) {
+  // 【老接口，仅做 fallback】POST /upload/fault — 只写文件不入库
+  // 推荐用 uploadFaultAttachment(faultId, file) — 事务化上传
   const form = new FormData()
   form.append('file', file)
   return api.post('/upload/fault', form, {
@@ -212,8 +214,66 @@ export function uploadFaultFile(file, onProgress) {
 }
 
 export function deleteFaultFile(filename) {
-  // filename 形如 '2026-09-10/abc123def.pdf'，由后端校验防止目录穿越
-  return api.delete(`/upload/fault/${filename}`)
+  // 【老接口，仅做 fallback】按文件名直接删磁盘文件
+  // 推荐用 deleteFaultAttachment(faultId, attId) — 软删 + 后台物理清理
+  return api.delete(`/upload/fault/${encodeURIComponent(filename)}`)
+}
+
+// ========== 故障附件 CRUD（事务化，P0 重构） ==========
+
+export function getFaultAttachments(faultId, includeDeleted = false) {
+  return api.get(`/admin/faults/${faultId}/attachments`, {
+    params: { include_deleted: includeDeleted ? 'true' : 'false' },
+  })
+}
+
+export function uploadFaultAttachment(faultId, file, onProgress) {
+  const form = new FormData()
+  form.append('file', file)
+  return api.post(`/admin/faults/${faultId}/attachments`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: onProgress,
+  })
+}
+
+export function deleteFaultAttachment(faultId, attachmentId) {
+  return api.delete(`/admin/faults/${faultId}/attachments/${attachmentId}`)
+}
+
+// ========== 故障标签（P1） ==========
+
+export function listFaultTags() {
+  return api.get('/admin/fault-tags')
+}
+
+export function createFaultTag(data) {
+  return api.post('/admin/fault-tags', data)
+}
+
+export function deleteFaultTag(tagId) {
+  return api.delete(`/admin/fault-tags/${tagId}`)
+}
+
+// ========== 故障版本历史（P1） ==========
+
+export function listFaultRevisions(faultId) {
+  return api.get(`/admin/faults/${faultId}/revisions`)
+}
+
+export function getFaultRevision(faultId, version) {
+  return api.get(`/admin/faults/${faultId}/revisions/${version}`)
+}
+
+// ========== 全文搜索（P1） ==========
+
+export function searchFaultsFulltext(q, opts = {}) {
+  return api.get('/admin/faults', {
+    params: {
+      q,
+      category_id: opts.categoryId,
+      tag_id: opts.tagId,
+    },
+  })
 }
 
 export function getServiceStaff() {
