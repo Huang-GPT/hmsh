@@ -35,6 +35,30 @@
             </template>
           </van-cell>
         </van-cell-group>
+
+        <!-- ============ P1 标签字典管理 ============ -->
+        <div class="tags-section">
+          <div class="section-title">故障标签字典</div>
+          <div class="tag-create-row">
+            <van-field v-model="newTag.name" placeholder="标签名（如 紧急）" />
+            <van-field v-model="newTag.slug" placeholder="slug（如 urgent）" />
+            <van-button size="small" type="primary" @click="addTag">添加</van-button>
+          </div>
+          <van-cell-group v-if="availableTags.length" class="tags-list">
+            <van-cell
+              v-for="t in availableTags"
+              :key="t.id"
+              :title="t.name"
+              :label="`slug: ${t.slug}`"
+            >
+              <template #right-icon>
+                <van-tag :color="t.color" size="mini" class="mr-1">{{ t.slug }}</van-tag>
+                <van-button size="mini" type="danger" plain @click="confirmDeleteTag(t)">删除</van-button>
+              </template>
+            </van-cell>
+          </van-cell-group>
+          <div v-else class="empty-tip" style="padding: 12px 0;">暂无标签</div>
+        </div>
       </van-tab>
 
       <van-tab title="故障条目" name="faults">
@@ -174,6 +198,12 @@
           </div>
         </div>
 
+        <!-- P1: 版本历史查看按钮（仅编辑模式可见） -->
+        <div v-if="editingFault && editingFault.id" class="history-bar">
+          <van-button size="small" plain icon="clock-o" @click="openRevisionDialog">查看版本历史</van-button>
+          <span class="history-hint">每次更新自动保存快照</span>
+        </div>
+
         <van-cell title="排序">
           <template #value>
             <input type="number" v-model.number="faultForm.sort_order" class="num-input" min="0" />
@@ -187,6 +217,25 @@
         </van-cell>
       </div>
     </van-dialog>
+
+    <!-- ============ P1 版本历史对话框 ============ -->
+    <van-dialog
+      v-model:show="showRevisionsDialog"
+      title="版本历史"
+      :show-confirm-button="false"
+      close-on-click-overlay
+    >
+      <div class="dialog-body revision-dialog">
+        <div v-if="revisions.length === 0" class="empty-tip">暂无历史版本（首次保存后才有）</div>
+        <div v-for="r in revisions" :key="r.id" class="revision-row">
+          <div class="rev-header">
+            <span class="rev-version">v{{ r.version }}</span>
+            <span class="rev-time">{{ formatUploadedTime(r.created_at) }}</span>
+          </div>
+          <div class="rev-note">{{ r.change_note || '(无说明)' }}</div>
+        </div>
+      </div>
+    </van-dialog>
   </div>
 </template>
 
@@ -195,7 +244,8 @@ import {
   getAllFaultCategories, createFaultCategory, updateFaultCategory, deleteFaultCategory,
   getAllFaults, createFault, updateFault, deleteFault,
   uploadFaultAttachment, deleteFaultAttachment, getFaultAttachments,
-  listFaultTags, listFaultRevisions,
+  listFaultTags, createFaultTag, deleteFaultTag, listFaultRevisions,
+  searchFaultsFulltext,
 } from '@/api/admin'
 
 const emptyCatForm = () => ({
@@ -234,6 +284,9 @@ export default {
       faultKeyword: '',
       faults: [],
       availableTags: [],  // P1 标签字典
+      newTag: { name: '', slug: '', color: '#909399' },  // P1 新建标签表单
+      revisions: [],  // P1 版本历史
+      showRevisionsDialog: false,
       showFaultDialog: false,
       editingFault: null,
       faultForm: emptyFaultForm(),
@@ -312,8 +365,12 @@ export default {
 
     // ===== 故障条目 =====
     async loadFaults() {
+      // P1：≥4 字符走 FULLTEXT (MATCH AGAINST)，短查询自动 fallback LIKE
       try {
-        const res = await getAllFaults({ keyword: this.faultKeyword })
+        const kw = (this.faultKeyword || '').trim()
+        const res = kw
+          ? await searchFaultsFulltext(kw)
+          : await getAllFaults({ keyword: kw })
         this.faults = (res.data && res.data.faults) || []
       } catch (e) {
         console.error(e)
@@ -364,6 +421,53 @@ export default {
       const idx = this.faultForm.tag_ids.indexOf(tagId)
       if (idx >= 0) this.faultForm.tag_ids.splice(idx, 1)
       else this.faultForm.tag_ids.push(tagId)
+    },
+    async addTag() {
+      if (!this.newTag.name || !this.newTag.name.trim() || !this.newTag.slug || !this.newTag.slug.trim()) {
+        this.$toast('请填写标签名和 slug')
+        return
+      }
+      try {
+        await createFaultTag({
+          name: this.newTag.name.trim(),
+          slug: this.newTag.slug.trim(),
+          color: this.newTag.color || '#909399',
+        })
+        this.$toast.success('已添加')
+        this.newTag = { name: '', slug: '', color: '#909399' }
+        await this.loadTags()
+      } catch (e) {
+        this.$toast((e && e.response && e.response.data && e.response.data.error) || '添加失败')
+      }
+    },
+    async confirmDeleteTag(t) {
+      try {
+        await this.$dialog.confirm({
+          title: '删除标签',
+          message: `确定删除标签「${t.name}」吗？使用此标签的故障条目会失去该标签。`,
+        })
+      } catch (_) { return }
+      try {
+        await deleteFaultTag(t.id)
+        this.$toast.success('已删除')
+        await this.loadTags()
+      } catch (e) {
+        this.$toast((e && e.response && e.response.data && e.response.data.error) || '删除失败')
+      }
+    },
+    async openRevisionDialog() {
+      if (!this.editingFault || !this.editingFault.id) {
+        this.$toast('请先保存条目，再查看历史')
+        return
+      }
+      this.showRevisionsDialog = true
+      this.revisions = []
+      try {
+        const res = await listFaultRevisions(this.editingFault.id)
+        this.revisions = (res.data && res.data.revisions) || []
+      } catch (e) {
+        this.$toast((e && e.response && e.response.data && e.response.data.error) || '加载历史失败')
+      }
     },
     formatUploadedTime(iso) {
       if (!iso) return ''
@@ -655,6 +759,83 @@ h3 {
 }
 .tag-chip {
   cursor: pointer;
+}
+
+/* ============ P1 标签字典管理 ============ */
+.tags-section {
+  margin-top: 20px;
+  padding: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+.section-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+  margin-bottom: 8px;
+}
+.tag-create-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.tag-create-row .van-field {
+  flex: 1;
+}
+.tags-list {
+  background: #fff;
+}
+.history-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #f9fafb;
+}
+.history-hint {
+  font-size: 11px;
+  color: #9ca3af;
+}
+.textarea-field {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+}
+.revision-dialog {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.revision-row {
+  padding: 10px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.revision-row:last-child {
+  border-bottom: none;
+}
+.rev-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.rev-version {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1976d2;
+}
+.rev-time {
+  font-size: 11px;
+  color: #9ca3af;
+}
+.rev-note {
+  font-size: 12px;
+  color: #6b7280;
 }
 .file-row {
   display: flex;
