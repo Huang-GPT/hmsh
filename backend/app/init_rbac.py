@@ -316,13 +316,8 @@ def _migrate_fault_library():
         db.session.rollback()
         return
 
-    # 1. 已迁移？跳过
-    already = db.session.execute(text(
-        "SELECT `value` FROM schema_meta WHERE `key` = 'attachments_migrated'"
-    )).scalar()
-    if already == '1':
-        print('[fault_migrate] already migrated, skip')
-        return
+    # 注意：schema_meta 仅用于「数据迁移」幂等标记；DDL（审计列、FULLTEXT）必须每次启动都检查
+    # （早期版本在这里早退，导致 ALTER 失败后下次重启仍跳过，列永远加不上）
 
     # 2. 审计列 + FULLTEXT 兜底（init.sql 也加了，这里再保险一次）
     #    MySQL < 8.0.29 不支持 ADD COLUMN IF NOT EXISTS，用 information_schema 检查后单独 ALTER
@@ -358,49 +353,54 @@ def _migrate_fault_library():
             print(f'[fault_migrate] ADD FULLTEXT failed: {e}')
             db.session.rollback()
 
-    # 3. 数据迁移：files JSON → attachments 行
+    # 3. 数据迁移：files JSON → attachments 行（仅在未迁移过时执行）
     #    使用 JSON_TABLE（MySQL 8.0.4+）；kind 不在 ENUM 时降级为 'file'
-    try:
-        result = db.session.execute(text("""
-            INSERT INTO common_fault_attachments
-                (fault_id, filename, url, size, mime, kind, uploaded_at, sort_order)
-            SELECT
-                cf.id,
-                jt.filename,
-                jt.url,
-                COALESCE(jt.fsize, 0),
-                jt.content_type,
-                CASE
-                    WHEN LOWER(jt.kind) IN ('pdf','doc','docx','image') THEN LOWER(jt.kind)
-                    ELSE 'file'
-                END,
-                cf.created_at,
-                0
-            FROM common_faults cf
-            JOIN JSON_TABLE(
-                cf.files,
-                '$[*]' COLUMNS (
-                    filename VARCHAR(255) PATH '$.filename',
-                    url VARCHAR(512) PATH '$.url',
-                    fsize INT PATH '$.size',
-                    content_type VARCHAR(128) PATH '$.content_type',
-                    kind VARCHAR(32) PATH '$.kind'
-                )
-            ) AS jt
-            WHERE cf.files IS NOT NULL
-              AND JSON_TYPE(cf.files) = 'ARRAY'
-              AND JSON_LENGTH(cf.files) > 0
-        """))
-        inserted = result.rowcount
-        db.session.commit()
-        print(f'[fault_migrate] inserted {inserted} attachment rows from legacy files JSON')
-    except Exception as e:
-        # JSON_TABLE 在 MySQL < 8.0.4 不支持；此时 attachments 表为空，前端走新流程会重新上传
-        print(f'[fault_migrate] data migration failed (legacy files dropped, new uploads will populate): {e}')
-        db.session.rollback()
-        inserted = 0
+    already = db.session.execute(text(
+        "SELECT `value` FROM schema_meta WHERE `key` = 'attachments_migrated'"
+    )).scalar()
+    if already == '1':
+        print('[fault_migrate] data migration already done, skip')
+    else:
+        try:
+            result = db.session.execute(text("""
+                INSERT INTO common_fault_attachments
+                    (fault_id, filename, url, size, mime, kind, uploaded_at, sort_order)
+                SELECT
+                    cf.id,
+                    jt.filename,
+                    jt.url,
+                    COALESCE(jt.fsize, 0),
+                    jt.content_type,
+                    CASE
+                        WHEN LOWER(jt.kind) IN ('pdf','doc','docx','image') THEN LOWER(jt.kind)
+                        ELSE 'file'
+                    END,
+                    cf.created_at,
+                    0
+                FROM common_faults cf
+                JOIN JSON_TABLE(
+                    cf.files,
+                    '$[*]' COLUMNS (
+                        filename VARCHAR(255) PATH '$.filename',
+                        url VARCHAR(512) PATH '$.url',
+                        fsize INT PATH '$.size',
+                        content_type VARCHAR(128) PATH '$.content_type',
+                        kind VARCHAR(32) PATH '$.kind'
+                    )
+                ) AS jt
+                WHERE cf.files IS NOT NULL
+                  AND JSON_TYPE(cf.files) = 'ARRAY'
+                  AND JSON_LENGTH(cf.files) > 0
+            """))
+            inserted = result.rowcount
+            db.session.commit()
+            print(f'[fault_migrate] inserted {inserted} attachment rows from legacy files JSON')
+        except Exception as e:
+            # JSON_TABLE 在 MySQL < 8.0.4 不支持；此时 attachments 表为空，前端走新流程会重新上传
+            print(f'[fault_migrate] data migration failed (legacy files dropped, new uploads will populate): {e}')
+            db.session.rollback()
 
-    # 4. 标记完成（即使迁移失败也标记，避免每次启动都跑失败的 SQL 刷屏）
+    # 4. 标记完成（独立于 DDL 失败 — 只标记 data migration）
     try:
         db.session.execute(text(
             "INSERT INTO schema_meta (`key`, `value`) VALUES ('attachments_migrated', '1') "
