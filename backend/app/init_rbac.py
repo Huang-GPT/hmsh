@@ -325,18 +325,22 @@ def _migrate_fault_library():
         return
 
     # 2. 审计列 + FULLTEXT 兜底（init.sql 也加了，这里再保险一次）
-    try:
-        db.session.execute(text(
-            "ALTER TABLE common_faults ADD COLUMN IF NOT EXISTS created_by INT"
-        ))
-        db.session.execute(text(
-            "ALTER TABLE common_faults ADD COLUMN IF NOT EXISTS updated_by INT"
-        ))
-        db.session.commit()
-    except Exception as e:
-        # MySQL 版本 < 8.0.29 不支持 IF NOT EXISTS 会报错，吞掉继续
-        print(f'[fault_migrate] ALTER TABLE skip (may already exist): {e}')
-        db.session.rollback()
+    #    MySQL < 8.0.29 不支持 ADD COLUMN IF NOT EXISTS，用 information_schema 检查后单独 ALTER
+    def _col_exists(table, col):
+        return db.session.execute(text(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS "
+            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t AND COLUMN_NAME = :c"
+        ), {'t': table, 'c': col}).scalar() > 0
+
+    for col in ('created_by', 'updated_by'):
+        if not _col_exists('common_faults', col):
+            try:
+                db.session.execute(text(f"ALTER TABLE common_faults ADD COLUMN {col} INT"))
+                db.session.commit()
+                print(f'[fault_migrate] added column common_faults.{col}')
+            except Exception as e:
+                print(f'[fault_migrate] add column {col} failed: {e}')
+                db.session.rollback()
 
     has_ft = db.session.execute(text("""
         SELECT COUNT(*) FROM information_schema.STATISTICS
