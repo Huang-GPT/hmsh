@@ -58,7 +58,7 @@ services:
       - ERP_API_URL=${ERP_API_URL}
       - ERP_API_KEY=${ERP_API_KEY}
       - GUNICORN_WORKERS=${GUNICORN_WORKERS:-4}
-      - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-60}
+      - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-180}
       - UPLOAD_DIR=/app/uploads
     volumes:
       - upload_data:/app/uploads

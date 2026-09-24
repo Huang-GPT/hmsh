@@ -15,7 +15,9 @@ class Config:
     JWT_EXPIRY_HOURS = 2
     BCRYPT_LOG_ROUNDS = 12
     UPLOAD_DIR = os.environ.get('UPLOAD_DIR') or '/app/uploads'
-    MAX_CONTENT_LENGTH = 20 * 1024 * 1024  # 20MB max upload (视频已禁用)
+    # 故障库单文件上限 30MB；Flask 层要留 multipart 开销余量，故设 50MB。
+    # 真正的业务上限由各上传接口的 FILE_MAX_SIZE / IMAGE_MAX_SIZE 控制。
+    MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB max upload (视频已禁用)
 
 
 class TestConfig(Config):
