@@ -18,7 +18,7 @@ def create_app(config_class=Config):
     CORS(app, supports_credentials=True, resources={r"/api/*": {"origins": "*"}})
 
     # 必须在 register_blueprint 之前 import models，让 SQLAlchemy 识别所有表
-    from app.models import user, work_order, product, service_point, common_fault, system, rbac
+    from app.models import user, work_order, product, service_point, common_fault, system, rbac, fault_file
     from app.models.rbac import Permission, Role, RolePermission, UserRole  # noqa
     from app.models.user import User
 

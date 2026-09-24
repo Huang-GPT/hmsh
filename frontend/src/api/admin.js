@@ -68,6 +68,17 @@ export function rejectOrder(orderId, reason) {
   return api.post(`/admin/orders/${orderId}/reject`, { reason })
 }
 
+export function getReopenOptions(orderId) {
+  return api.get(`/admin/orders/${orderId}/reopen-options`)
+}
+
+export function reopenClosedOrder(orderId, targetStatus, reason) {
+  return api.post(`/admin/orders/${orderId}/reopen`, {
+    target_status: targetStatus,
+    reason,
+  })
+}
+
 export function getAllUsers(params) {
   return api.get('/admin/users', { params })
 }
@@ -220,6 +231,50 @@ export function uploadFaultAttachment(faultId, file, onProgress) {
 
 export function deleteFaultAttachment(faultId, attachmentId) {
   return api.delete(`/admin/faults/${faultId}/attachments/${attachmentId}`)
+}
+
+// ========== 故障文件库 v2（2026-09 重构：平铺 PDF/图片/文档） ==========
+
+/**
+ * 列出故障文件
+ * @param {Object} params { kind?: 'pdf'|'image'|'doc', keyword?: string, include_deleted?: boolean }
+ */
+export function getFaultFiles(params = {}) {
+  const p = {}
+  if (params.kind) p.kind = params.kind
+  if (params.keyword) p.keyword = params.keyword
+  if (params.include_deleted) p.include_deleted = '1'
+  return api.get('/admin/fault-files', { params: p })
+}
+
+/**
+ * 上传故障文件（multipart/form-data）
+ * @param {File} file
+ * @param {string} [description]
+ * @param {function} [onProgress] 上传进度回调
+ */
+export function uploadFaultFile(file, description = '', onProgress = null) {
+  const form = new FormData()
+  form.append('file', file)
+  if (description) form.append('description', description)
+  return api.post('/admin/fault-files', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: onProgress,
+  })
+}
+
+/**
+ * 删除故障文件（软删）
+ */
+export function deleteFaultFile(id) {
+  return api.delete(`/admin/fault-files/${id}`)
+}
+
+/**
+ * 更新文件描述 / 排序 / 状态
+ */
+export function updateFaultFile(id, data) {
+  return api.patch(`/admin/fault-files/${id}`, data)
 }
 
 export function getServiceStaff() {

@@ -1,475 +1,368 @@
 <template>
   <div class="admin-faults">
     <div class="page-header">
-      <h3>故障库管理</h3>
-      <p class="page-sub">维护故障分类与对应常见故障案例</p>
+      <h3>故障文件库</h3>
+      <p class="page-sub">上传与管理常见故障的 PDF 文档、图片与 Office 文档（移动端自动展示）</p>
     </div>
 
-    <!-- Tabs -->
-    <van-tabs v-model:active="tab" sticky offset-top="0" @click-tab="onTabChange">
-      <van-tab title="故障分类" name="categories">
-        <div class="toolbar">
-          <van-search
-            v-model="catKeyword"
-            placeholder="搜索分类名"
-            @search="loadCategories"
-            shape="round"
-          />
-          <van-button v-if="$hasPermission('fault:create')" type="primary" size="small" icon="plus" @click="openCatCreate">新建分类</van-button>
-        </div>
-
-        <div v-if="categories.length === 0" class="empty-tip">
-          <van-empty description="暂无故障分类" />
-        </div>
-        <van-cell-group v-else class="cat-list">
-          <van-cell
-            v-for="cat in categories"
-            :key="cat.id"
-            :title="cat.name"
-            :label="`${cat.fault_count || 0} 个常见故障 · 排序 ${cat.sort_order || 0}`"
-          >
-            <template #icon>
-              <span class="cat-icon">{{ cat.icon || '🔧' }}</span>
-            </template>
-            <template #right-icon>
-              <van-tag v-if="cat.status === 'disabled'" type="danger" size="mini" class="mr-1">已停用</van-tag>
-              <van-button v-if="$hasPermission('fault:edit')" size="mini" plain class="mr-1" @click="openCatEdit(cat)">编辑</van-button>
-              <van-button v-if="$hasPermission('fault:delete')" size="mini" type="danger" plain @click="confirmCatDelete(cat)">停用</van-button>
-            </template>
-          </van-cell>
-        </van-cell-group>
-      </van-tab>
-
-      <van-tab title="故障条目" name="faults">
-        <div class="toolbar">
-          <van-search
-            v-model="faultKeyword"
-            placeholder="搜索标题/内容"
-            @search="loadFaults"
-            shape="round"
-          />
-          <van-button v-if="$hasPermission('fault:create')" type="primary" size="small" icon="plus" @click="openFaultCreate">新建故障</van-button>
-        </div>
-
-        <van-cell-group class="fault-list">
-          <van-cell
-            v-for="f in faults"
-            :key="f.id"
-            :title="f.title"
-            :label="`${f.category_name || '未分类'} · 适用型号 ${f.product_model || '通用'} · 排序 ${f.sort_order || 0}`"
-            is-link
-            @click="openFaultEdit(f)"
-          >
-            <template #right-icon>
-              <van-tag v-if="f.status === 'disabled'" type="danger" size="mini" class="mr-1">已停用</van-tag>
-              <van-button v-if="$hasPermission('fault:delete')" size="mini" type="danger" plain @click.stop="confirmFaultDelete(f)">停用</van-button>
-            </template>
-          </van-cell>
-        </van-cell-group>
-        <van-empty v-if="faults.length === 0" description="暂无故障条目" />
-      </van-tab>
-    </van-tabs>
-
-    <!-- ============ 分类编辑弹窗 ============ -->
-    <van-dialog
-      v-model:show="showCatDialog"
-      :title="editingCat ? '编辑故障分类' : '新建故障分类'"
-      show-cancel-button
-      @confirm="saveCat"
-    >
-      <div class="dialog-body">
-        <van-field v-model="catForm.name" label="分类名称" placeholder="如: 电源故障" required maxlength="30" />
-        <van-field v-model="catForm.icon" label="图标(Emoji)" placeholder="如: 🔌" maxlength="4" />
-        <van-cell title="排序">
-          <template #value>
-            <input type="number" v-model.number="catForm.sort_order" class="num-input" min="0" />
-          </template>
-        </van-cell>
-        <van-cell title="状态">
-          <template #value>
-            <van-switch v-model="catActive" />
-            <span class="ml-1">{{ catActive ? '启用' : '停用' }}</span>
-          </template>
-        </van-cell>
+    <!-- 工具栏：搜索 + 类型筛选 + 操作 -->
+    <div class="toolbar">
+      <div class="toolbar-row">
+        <van-search
+          v-model="keyword"
+          placeholder="搜索文件名 / 描述"
+          @search="loadFiles(1)"
+          shape="round"
+          class="search-box"
+          background="transparent"
+        />
+        <van-button size="small" plain icon="replay" @click="loadFiles()">刷新</van-button>
       </div>
-    </van-dialog>
+      <div class="toolbar-row toolbar-filters">
+        <span
+          v-for="f in typeFilters"
+          :key="f.value"
+          :class="['filter-chip', { active: typeFilter === f.value }]"
+          @click="setTypeFilter(f.value)"
+        >
+          {{ f.label }} <span class="chip-count">({{ typeCounts[f.value] || 0 }})</span>
+        </span>
+      </div>
+    </div>
 
-    <!-- ============ 故障条目编辑弹窗 ============ -->
-    <van-dialog
-      v-model:show="showFaultDialog"
-      :title="editingFault ? '编辑故障条目' : '新建故障条目'"
-      show-cancel-button
-      @confirm="saveFault"
-    >
-      <div class="dialog-body">
-        <van-cell title="所属分类" :is-link="false">
-          <template #value>
-            <select v-model="faultForm.category_id" class="select-input">
-              <option :value="null">请选择</option>
-              <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
-            </select>
-          </template>
-        </van-cell>
-        <van-field v-model="faultForm.title" label="标题" placeholder="如: 无法开机" required maxlength="60" />
-        <van-field v-model="faultForm.product_model" label="适用型号" placeholder="如: HM-001（留空表示通用）" maxlength="40" />
-        <van-field v-model="faultForm.content" label="详细内容" type="textarea" placeholder="故障描述、原因、解决方案…" rows="4" maxlength="1000" />
-
-        <!-- ============ 常见故障文件管理（P0+P1 重构 2026-09） ============ -->
-        <div class="fault-files">
-          <div class="files-title">
-            <span>常见故障文件</span>
-            <span class="files-hint">PDF / DOC / DOCX / 图片（单文件 ≤20MB）</span>
-          </div>
-          <!-- P0：新建模式下禁用上传（必须先保存条目） -->
-          <div v-if="!editingFault" class="files-empty files-empty-locked">
-            ⚠️ 请先填写标题/分类并点击「确定」保存条目，再上传附件
-          </div>
-          <template v-else>
-            <div v-if="faultForm.attachments.length === 0" class="files-empty">暂无文件，请点击下方上传</div>
-            <div v-for="att in faultForm.attachments" :key="att.id" class="file-row">
-              <van-icon :name="fileIcon(att)" :color="fileColor(att)" size="20" />
-              <div class="file-meta">
-                <div class="file-name" :title="att.filename">{{ att.filename }}</div>
-                <div class="file-info">
-                  <span class="file-size">{{ formatSize(att.size) }}</span>
-                  <span class="file-kind">{{ fileKindLabel(att) }}</span>
-                </div>
+    <!-- 表格 -->
+    <div class="table-wrap">
+      <table class="file-table">
+        <thead>
+          <tr>
+            <th class="col-thumb">预览</th>
+            <th>文件名</th>
+            <th>类型</th>
+            <th>大小</th>
+            <th>描述</th>
+            <th>上传时间</th>
+            <th>上传人</th>
+            <th class="col-actions">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="loading && files.length === 0">
+            <td colspan="8" class="state-cell">加载中…</td>
+          </tr>
+          <tr v-else-if="files.length === 0">
+            <td colspan="8" class="state-cell">
+              <div class="empty-cell">
+                <div class="empty-icon">📁</div>
+                <div class="empty-text">暂无文件</div>
+                <div class="empty-hint">点击下方"上传文件"按钮开始</div>
               </div>
-              <van-button size="mini" plain type="danger" @click="removeFaultFile(att)">删除</van-button>
-            </div>
-            <van-uploader
-              v-if="faultForm.attachments.length < 20"
-              class="files-uploader"
-              :after-read="handleFaultFileUpload"
-              :max-size="20 * 1024 * 1024"
-              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-              :preview-image="false"
-              :multiple="true"
-            >
-              <van-button size="small" icon="plus" type="primary" plain>上传文件</van-button>
-            </van-uploader>
-          </template>
-        </div>
+            </td>
+          </tr>
+          <tr v-for="f in files" :key="f.id">
+            <td class="col-thumb">
+              <div class="thumb" :class="`thumb-${f.kind}`" @click="previewFile(f)">
+                <van-icon v-if="f.kind !== 'image'" :name="kindIcon(f)" size="22" :color="kindColor(f)" />
+                <img v-else :src="normalizeUrl(f.url)" :alt="f.filename" />
+              </div>
+            </td>
+            <td class="col-name" :title="f.filename">{{ f.filename }}</td>
+            <td>
+              <span class="kind-badge" :class="`kind-badge-${f.kind}`">{{ kindLabel(f.kind) }}</span>
+            </td>
+            <td class="col-size">{{ formatSize(f.size) }}</td>
+            <td class="col-desc" :title="f.description || ''">
+              {{ f.description || '—' }}
+            </td>
+            <td class="col-time">{{ formatDate(f.created_at) }}</td>
+            <td>{{ f.uploader_name || '—' }}</td>
+            <td class="col-actions" @click.stop>
+              <a v-if="f.kind === 'image' || f.kind === 'pdf'" class="op-link primary" @click="previewFile(f)">预览</a>
+              <a class="op-link" @click="downloadFile(f)">下载</a>
+              <a class="op-link" @click="openEditDesc(f)">编辑</a>
+              <a class="op-link danger" @click="confirmDelete(f)">删除</a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
-        <van-cell title="排序">
-          <template #value>
-            <input type="number" v-model.number="faultForm.sort_order" class="num-input" min="0" />
-          </template>
-        </van-cell>
-        <van-cell title="状态">
-          <template #value>
-            <van-switch v-model="faultActive" />
-            <span class="ml-1">{{ faultActive ? '启用' : '停用' }}</span>
-          </template>
-        </van-cell>
+    <!-- 隐藏的批量上传 input -->
+    <input
+      ref="fileInputRef"
+      type="file"
+      multiple
+      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,.bmp"
+      style="display: none"
+      @change="onFilesSelected"
+    />
+
+    <!-- 底部悬浮操作条 -->
+    <div class="bottom-bar">
+      <span class="stat-tip">共 {{ total }} 个文件</span>
+      <van-button
+        type="primary"
+        size="small"
+        icon="plus"
+        :loading="uploading"
+        @click="openUploadPicker"
+      >
+        上传文件
+      </van-button>
+    </div>
+
+    <!-- 描述编辑弹窗 -->
+    <van-dialog
+      v-model:show="showEditDialog"
+      title="编辑描述"
+      show-cancel-button
+      @confirm="saveDescription"
+    >
+      <div class="dialog-body">
+        <div class="edit-filename" :title="editingFile && editingFile.filename">
+          {{ editingFile && editingFile.filename }}
+        </div>
+        <van-field
+          v-model="editingDescription"
+          type="textarea"
+          rows="3"
+          maxlength="500"
+          show-word-limit
+          placeholder="为该文件添加一段描述（可选）"
+        />
       </div>
     </van-dialog>
 
-    </div>
+    <!-- 图片预览 -->
+    <van-image-preview
+      v-model:show="showImagePreview"
+      :images="previewImages"
+      :start-position="previewStart"
+      closeable
+    />
+  </div>
 </template>
 
 <script>
 import {
-  getAllFaultCategories, createFaultCategory, updateFaultCategory, deleteFaultCategory,
-  getAllFaults, createFault, updateFault, deleteFault,
-  uploadFaultAttachment, deleteFaultAttachment, getFaultAttachments,
+  getFaultFiles,
+  uploadFaultFile,
+  deleteFaultFile,
+  updateFaultFile,
 } from '@/api/admin'
 
-const emptyCatForm = () => ({
-  name: '',
-  icon: '',
-  sort_order: 0,
-  status: 'active',
-})
-
-const emptyFaultForm = () => ({
-  category_id: null,
-  title: '',
-  content: '',
-  product_model: '',
-  attachments: [],  // [{id, url, filename, size, kind}]
-  sort_order: 0,
-  status: 'active',
-})
+const TYPE_FILTERS = [
+  { value: '', label: '全部' },
+  { value: 'pdf', label: 'PDF' },
+  { value: 'image', label: '图片' },
+  { value: 'doc', label: '文档' },
+]
 
 export default {
   name: 'AdminFaults',
   data() {
     return {
-      tab: 'categories',
+      files: [],
+      loading: false,
+      total: 0,
+      keyword: '',
+      typeFilter: '',
 
-      // 分类
-      catKeyword: '',
-      categories: [],
-      showCatDialog: false,
-      editingCat: null,
-      catForm: emptyCatForm(),
-      catActive: true,
+      uploading: false,
+      uploadQueue: [],   // 待上传队列 { file, status, error }
 
-      // 故障条目
-      faultKeyword: '',
-      faults: [],
-      showFaultDialog: false,
-      editingFault: null,
-      faultForm: emptyFaultForm(),
-      faultActive: true,
+      showEditDialog: false,
+      editingFile: null,
+      editingDescription: '',
+
+      showImagePreview: false,
+      previewImages: [],
+      previewStart: 0,
     }
   },
+  computed: {
+    typeFilters() {
+      return TYPE_FILTERS
+    },
+    // 当前结果内每个类型的计数（仅基于当前已加载数据，不重查后端）
+    typeCounts() {
+      const counts = { '': this.files.length, pdf: 0, image: 0, doc: 0 }
+      for (const f of this.files) {
+        if (counts[f.kind] !== undefined) counts[f.kind]++
+      }
+      return counts
+    },
+  },
   created() {
-    this.loadCategories()
-    this.loadFaults()
+    this.loadFiles()
   },
   methods: {
-    onTabChange() {
-      if (this.tab === 'categories') this.loadCategories()
-      else this.loadFaults()
+    setTypeFilter(v) {
+      this.typeFilter = v
+      this.loadFiles()
     },
 
-    // ===== 分类 =====
-    async loadCategories() {
-      try {
-        const res = await getAllFaultCategories({ keyword: this.catKeyword })
-        this.categories = (res.data && res.data.categories) || []
-      } catch (e) {
-        console.error(e)
-      }
-    },
-    openCatCreate() {
-      this.editingCat = null
-      this.catForm = emptyCatForm()
-      this.catActive = true
-      this.showCatDialog = true
-    },
-    openCatEdit(cat) {
-      this.editingCat = cat
-      this.catForm = { ...cat }
-      this.catActive = cat.status !== 'disabled'
-      this.showCatDialog = true
-    },
-    async saveCat() {
-      if (!this.catForm.name || !this.catForm.name.trim()) {
-        this.$toast('请填写分类名称')
-        return false
-      }
-      this.catForm.status = this.catActive ? 'active' : 'disabled'
-      try {
-        if (this.editingCat) {
-          await updateFaultCategory(this.editingCat.id, this.catForm)
-          this.$toast.success('更新成功')
-        } else {
-          await createFaultCategory(this.catForm)
-          this.$toast.success('创建成功')
-        }
-        this.showCatDialog = false
-        this.loadCategories()
-      } catch (e) {
-        const msg = (e && e.response && e.response.data && e.response.data.error) || '操作失败'
-        this.$toast(msg)
-        return false
-      }
-      return true
-    },
-    confirmCatDelete(cat) {
-      this.$dialog.confirm({
-        title: '停用确认',
-        message: `确定停用分类「${cat.name}」吗？该分类下的故障条目不会被删除。`,
-      }).then(async () => {
-        try {
-          await deleteFaultCategory(cat.id)
-          this.$toast.success('已停用')
-          this.loadCategories()
-        } catch (e) {
-          this.$toast('操作失败')
-        }
-      }).catch(() => {})
-    },
-
-    // ===== 故障条目 =====
-    async loadFaults() {
-      try {
-        const res = await getAllFaults({ keyword: this.faultKeyword })
-        this.faults = (res.data && res.data.faults) || []
-      } catch (e) {
-        console.error(e)
-      }
-    },
-    openFaultCreate() {
-      this.editingFault = null
-      this.faultForm = emptyFaultForm()
-      this.faultActive = true
-      this.showFaultDialog = true
-    },
-    async openFaultEdit(f) {
-      this.editingFault = f
-      this.faultForm = {
-        category_id: f.category_id,
-        title: f.title,
-        content: f.content,
-        product_model: f.product_model,
-        attachments: [],  // 异步加载
-        sort_order: f.sort_order || 0,
-        status: f.status,
-      }
-      this.faultActive = f.status !== 'disabled'
-      this.showFaultDialog = true
-      this.loadFaultAttachments(f.id)
-    },
-    async loadFaultAttachments(faultId) {
-      try {
-        const res = await getFaultAttachments(faultId)
-        this.faultForm.attachments = (res.data && res.data.attachments) || []
-      } catch (e) {
-        console.error('加载附件失败', e)
-        this.faultForm.attachments = []
-      }
-    },
-    async saveFault() {
-      if (!this.faultForm.title || !this.faultForm.title.trim()) {
-        this.$toast('请填写标题')
-        return false
-      }
-      if (!this.faultForm.category_id) {
-        this.$toast('请选择分类')
-        return false
-      }
-      this.faultForm.status = this.faultActive ? 'active' : 'disabled'
-      // 附件走独立 endpoint，不在 payload 里
-      const payload = { ...this.faultForm }
-      delete payload.attachments
-      try {
-        if (this.editingFault) {
-          await updateFault(this.editingFault.id, payload)
-          this.$toast.success('更新成功')
-        } else {
-          const res = await createFault(payload)
-          this.$toast.success('创建成功')
-          // 新建后立即切到编辑模式，允许上传附件
-          if (res && res.data && res.data.fault && res.data.fault.id) {
-            this.editingFault = res.data.fault
-            await this.loadFaultAttachments(res.data.fault.id)
-          }
-        }
-        this.showFaultDialog = false
-        this.loadFaults()
-      } catch (e) {
-        const msg = (e && e.response && e.response.data && e.response.data.error) || '操作失败'
-        this.$toast(msg)
-        return false
-      }
-      return true
-    },
-    confirmFaultDelete(f) {
-      this.$dialog.confirm({
-        title: '停用确认',
-        message: `确定停用故障「${f.title}」吗？手机端将不再展示。`,
-      }).then(async () => {
-        try {
-          await deleteFault(f.id)
-          this.$toast.success('已停用')
-          this.loadFaults()
-        } catch (e) {
-          this.$toast('操作失败')
-        }
-      }).catch(() => {})
-    },
-
-    // ===== 故障文件管理 =====
-    fileExt(file) {
-      return (file.filename || '').toLowerCase().split('.').pop() || ''
-    },
-    fileIcon(file) {
-      const ext = this.fileExt(file)
-      if (ext === 'pdf') return 'description'
-      if (ext === 'doc' || ext === 'docx') return 'word'
-      if (['jpg', 'jpeg', 'png'].includes(ext)) return 'photo-o'
+    // ============ 文件工具方法 ============
+    kindIcon(f) {
+      if (f.kind === 'pdf') return 'description'
+      if (f.kind === 'doc') return 'word'
       return 'file-o'
     },
-    fileColor(file) {
-      const ext = this.fileExt(file)
-      if (ext === 'pdf') return '#e74c3c'
-      if (ext === 'doc' || ext === 'docx') return '#2c5aa0'
-      if (['jpg', 'jpeg', 'png'].includes(ext)) return '#16a34a'
-      return '#666'
+    kindColor(f) {
+      if (f.kind === 'pdf') return '#e74c3c'
+      if (f.kind === 'doc') return '#2c5aa0'
+      return '#909399'
     },
-    fileKindLabel(file) {
-      const ext = this.fileExt(file)
-      const map = { pdf: 'PDF', doc: 'DOC', docx: 'DOCX', jpg: 'JPG', jpeg: 'JPG', png: 'PNG' }
-      return map[ext] || ext.toUpperCase()
+    kindLabel(kind) {
+      const map = { pdf: 'PDF', image: '图片', doc: 'DOC' }
+      return map[kind] || kind.toUpperCase()
     },
     formatSize(bytes) {
-      if (!bytes) return ''
+      if (!bytes && bytes !== 0) return '—'
       if (bytes < 1024) return bytes + ' B'
       if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
       return (bytes / 1024 / 1024).toFixed(1) + ' MB'
     },
-    async handleFaultFileUpload(fileObj) {
-      // 新建模式下禁用上传（必须先保存条目才有 fault_id 可关联）
-      if (!this.editingFault || !this.editingFault.id) {
-        this.$toast('请先保存条目，再上传附件')
-        return
-      }
-      const faultId = this.editingFault.id
-      const files = Array.isArray(fileObj) ? fileObj : [fileObj]
-      for (const item of files) {
-        if (!item || !item.file) continue
-        item.status = 'uploading'
-        item.message = '上传中…'
-        try {
-          const res = await uploadFaultAttachment(faultId, item.file)
-          const d = (res && res.data && res.data.attachment) || {}
-          item.status = 'done'
-          item.message = '已上传'
-          if (d && d.id) {
-            this.faultForm.attachments.push({
-              id: d.id,
-              url: d.url,
-              filename: d.filename,
-              size: d.size,
-              kind: d.kind,
-              mime: d.mime,
-            })
-          }
-        } catch (e) {
-          item.status = 'failed'
-          item.message = (e && e.response && e.response.data && e.response.data.error) || '上传失败'
-          this.$toast(item.message)
-        }
+    formatDate(s) {
+      if (!s) return '—'
+      const str = String(s).replace('T', ' ')
+      return str.length >= 16 ? str.substring(0, 16) : str
+    },
+    normalizeUrl(url) {
+      if (!url) return ''
+      if (/^https?:\/\//.test(url) || url.startsWith('data:')) return url
+      return url.startsWith('/') ? url : '/' + url
+    },
+
+    // ============ 列表 ============
+    async loadFiles() {
+      this.loading = true
+      try {
+        const params = {}
+        if (this.keyword) params.keyword = this.keyword
+        if (this.typeFilter) params.kind = this.typeFilter
+        const res = await getFaultFiles(params)
+        this.files = (res.data && res.data.files) || []
+        this.total = (res.data && res.data.total) || this.files.length
+      } catch (e) {
+        console.error(e)
+        this.$toast('加载失败')
+      } finally {
+        this.loading = false
       }
     },
-    async removeFaultFile(attOrIdx) {
-      // attOrIdx 既可能是 number（旧逻辑，faultForm.files 数组下标），
-      // 也可能是 attachment 对象本身（新版，传 att 进来）
-      let att, idx
-      if (typeof attOrIdx === 'number') {
-        idx = attOrIdx
-        att = this.faultForm.attachments[idx]
-      } else {
-        att = attOrIdx
-        idx = this.faultForm.attachments.findIndex(x => x.id === att.id)
+
+    // ============ 上传 ============
+    openUploadPicker() {
+      if (this.$refs.fileInputRef) this.$refs.fileInputRef.click()
+    },
+    onFilesSelected(event) {
+      const fileList = Array.from(event.target.files || [])
+      // 允许重复选择同一文件
+      event.target.value = ''
+      if (fileList.length === 0) return
+      this.uploadQueue = fileList.map(f => ({ file: f, status: 'pending', error: '' }))
+      this.uploadAll()
+    },
+    async uploadAll() {
+      this.uploading = true
+      let ok = 0, fail = 0
+      const failNames = []
+      for (const item of this.uploadQueue) {
+        if (item.status !== 'pending') continue
+        item.status = 'uploading'
+        item.error = ''
+        try {
+          await uploadFaultFile(item.file, '')
+          item.status = 'done'
+          ok++
+        } catch (e) {
+          item.status = 'failed'
+          item.error = (e && e.response && e.response.data && e.response.data.error) || '上传失败'
+          fail++
+          failNames.push(`${item.file.name} (${item.error})`)
+        }
       }
-      if (!att || !att.id) return
-      try {
-        await this.$dialog.confirm({
-          title: '删除确认',
-          message: `确定删除文件「${att.filename}」吗？文件将从服务器彻底删除。`,
-        })
-      } catch (_) {
+      this.uploading = false
+      // 清理已结束的项
+      this.uploadQueue = this.uploadQueue.filter(it => it.status === 'uploading' || it.status === 'pending')
+      if (ok > 0) this.$toast.success(`上传成功 ${ok} 个`)
+      if (fail > 0) {
+        this.$dialog.alert({
+          title: `上传失败 ${fail} 个`,
+          message: failNames.join('\n'),
+          confirmButtonText: '知道了',
+        }).catch(() => {})
+      }
+      if (ok > 0) this.loadFiles()
+    },
+
+    // ============ 预览 / 下载 ============
+    previewFile(f) {
+      if (f.kind === 'image') {
+        this.previewImages = [{ url: this.normalizeUrl(f.url) }]
+        this.previewStart = 0
+        this.showImagePreview = true
         return
       }
-      try {
-        await deleteFaultAttachment(this.editingFault.id, att.id)
-        this.faultForm.attachments.splice(idx, 1)
-        this.$toast.success('已删除')
-      } catch (e) {
-        this.$toast((e && e.response && e.response.data && e.response.data.error) || '删除失败')
+      if (f.kind === 'pdf') {
+        // PDF 用浏览器原生查看（新标签）
+        window.open(this.normalizeUrl(f.url), '_blank')
+        return
       }
+      // doc / 其他：直接下载
+      this.downloadFile(f)
+    },
+    downloadFile(f) {
+      const a = document.createElement('a')
+      a.href = this.normalizeUrl(f.url)
+      a.download = f.filename || 'download'
+      a.style.display = 'none'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    },
+
+    // ============ 描述编辑 ============
+    openEditDesc(f) {
+      this.editingFile = f
+      this.editingDescription = f.description || ''
+      this.showEditDialog = true
+    },
+    async saveDescription() {
+      if (!this.editingFile) return
+      try {
+        await updateFaultFile(this.editingFile.id, {
+          description: this.editingDescription,
+        })
+        this.$toast.success('已保存')
+        this.showEditDialog = false
+        this.loadFiles()
+      } catch (e) {
+        this.$toast((e && e.response && e.response.data && e.response.data.error) || '保存失败')
+      }
+    },
+
+    // ============ 删除 ============
+    confirmDelete(f) {
+      this.$dialog.confirm({
+        title: '删除确认',
+        message: `确定删除文件「${f.filename}」吗？`,
+      }).then(async () => {
+        try {
+          await deleteFaultFile(f.id)
+          this.$toast.success('已删除')
+          this.loadFiles()
+        } catch (e) {
+          this.$toast((e && e.response && e.response.data && e.response.data.error) || '删除失败')
+        }
+      }).catch(() => {})
     },
   },
 }
 </script>
 
 <style scoped>
-.admin-faults { max-width: 1400px; }
+.admin-faults { max-width: 1400px; padding-bottom: 80px; }
 .page-header { margin-bottom: var(--space-5); }
 .admin-faults h3 {
   margin: 0 0 var(--space-1);
@@ -482,127 +375,212 @@ export default {
   font-size: var(--text-sm);
   color: var(--color-text-tertiary);
 }
+
+/* ===== Toolbar ===== */
 .toolbar {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-  padding: var(--space-2) 0;
-  margin-bottom: var(--space-4);
-}
-.toolbar .van-search {
-  flex: 1;
-}
-.empty-tip {
-  padding: 40px 0;
-}
-.cat-list,
-.fault-list {
-  margin-top: var(--space-2);
+  background: var(--color-bg-card);
   border-radius: var(--radius-md);
-  overflow: hidden;
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
   box-shadow: var(--shadow-card);
 }
-.cat-icon {
-  font-size: 22px;
-  margin-right: 8px;
-  flex-shrink: 0;
-}
-.mr-1 {
-  margin-right: 6px;
-}
-.ml-1 {
-  margin-left: 6px;
-}
-.dialog-body {
-  padding: 8px 0;
-  max-height: 60vh;
-  overflow-y: auto;
-}
-.num-input,
-.select-input {
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 13px;
-  background: #fff;
-  min-width: 80px;
-}
-.select-input {
-  min-width: 140px;
-}
-
-/* ============ 常见故障文件管理样式 ============ */
-.fault-files {
-  margin: 12px 16px;
-  padding: 12px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-}
-.files-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #1f2937;
-}
-.files-hint {
-  font-size: 11px;
-  color: #6b7280;
-  font-weight: normal;
-}
-.files-empty {
-  padding: 12px 0;
-  text-align: center;
-  color: #9ca3af;
-  font-size: 13px;
-}
-.files-empty-locked {
-  background: #fef3c7;
-  color: #92400e;
-  border-radius: 4px;
-  padding: 10px 12px;
-  font-size: 12px;
-  margin: 8px 0;
-}
-.file-row {
+.toolbar-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px solid #f3f4f6;
+  gap: var(--space-3);
 }
-.file-row:last-of-type {
-  border-bottom: none;
+.toolbar-row + .toolbar-row {
+  margin-top: var(--space-3);
 }
-.file-meta {
+.toolbar-filters {
+  border-top: 1px solid var(--color-divider);
+  padding-top: var(--space-3);
+}
+.search-box {
   flex: 1;
-  min-width: 0;
+  min-width: 280px;
 }
-.file-name {
-  font-size: 13px;
-  color: #1f2937;
-  white-space: nowrap;
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-muted);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  border: 1px solid transparent;
+}
+.filter-chip:hover {
+  background: var(--color-border-light);
+}
+.filter-chip.active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+.chip-count {
+  font-size: var(--text-xs);
+  opacity: 0.85;
+}
+
+/* ===== Table ===== */
+.table-wrap {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
   overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 280px;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
 }
-.file-info {
+.file-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.file-table th,
+.file-table td {
+  padding: 12px var(--space-2);
+  text-align: left;
+  vertical-align: middle;
+}
+.file-table thead {
+  background: var(--color-bg-muted);
+}
+.file-table th {
+  font-weight: var(--font-semibold);
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+.file-table td {
+  border-bottom: 1px solid var(--color-divider);
+  color: var(--color-text-secondary);
+}
+.file-table tbody tr { transition: background var(--transition-fast); }
+.file-table tbody tr:hover td { background: var(--brand-50); }
+
+.col-thumb { width: 60px; }
+.col-name { max-width: 240px; }
+.col-size { width: 100px; font-family: ui-monospace, monospace; }
+.col-desc { max-width: 220px; color: var(--color-text-tertiary); }
+.col-time { width: 140px; font-family: ui-monospace, monospace; font-size: var(--text-xs); white-space: nowrap; }
+.col-actions { width: 220px; white-space: nowrap; }
+
+/* ===== Thumbnail ===== */
+.thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-muted);
   display: flex;
-  gap: 8px;
-  margin-top: 2px;
-  font-size: 11px;
-  color: #6b7280;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform var(--transition-fast);
 }
-.file-kind {
-  background: #e5e7eb;
-  padding: 1px 6px;
-  border-radius: 3px;
-  font-weight: 500;
+.thumb:hover {
+  transform: scale(1.05);
 }
-.files-uploader {
-  margin-top: 8px;
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.thumb-pdf {
+  background: #fef2f2;
+}
+.thumb-doc {
+  background: #eff6ff;
+}
+.thumb-image {
+  background: var(--color-bg-muted);
+}
+
+/* ===== Kind badge ===== */
+.kind-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  white-space: nowrap;
+}
+.kind-badge-pdf {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+.kind-badge-image {
+  background: #ecfdf5;
+  color: #047857;
+}
+.kind-badge-doc {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+/* ===== State / Empty ===== */
+.state-cell {
+  text-align: center !important;
+  padding: 60px !important;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-sm);
+}
+.empty-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+.empty-icon { font-size: 48px; opacity: 0.5; }
+.empty-text { font-size: var(--text-base); color: var(--color-text-tertiary); }
+.empty-hint { font-size: var(--text-sm); color: var(--color-text-placeholder); }
+
+/* ===== Action links ===== */
+.op-link {
+  display: inline-block;
+  margin-right: var(--space-2);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--color-primary);
+  text-decoration: none;
+}
+.op-link:hover { text-decoration: underline; }
+.op-link.primary { color: var(--color-primary); }
+.op-link.danger { color: var(--color-danger); }
+
+/* ===== Bottom bar ===== */
+.bottom-bar {
+  position: fixed;
+  bottom: var(--space-4);
+  right: var(--space-4);
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  background: var(--color-bg-card);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-md);
+  z-index: 10;
+}
+.stat-tip {
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+}
+
+/* ===== Dialog ===== */
+.dialog-body {
+  padding: var(--space-3) var(--space-4);
+}
+.edit-filename {
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+  margin-bottom: var(--space-3);
+  word-break: break-all;
+  line-height: 1.5;
+  max-height: 60px;
+  overflow-y: auto;
 }
 </style>

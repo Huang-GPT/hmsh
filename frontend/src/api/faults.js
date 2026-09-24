@@ -44,3 +44,15 @@ export function getFaultsByCategory(categoryId) {
 export function getFaultAttachments(faultId) {
   return api.get(`/admin/faults/${faultId}/attachments`)
 }
+
+// ========== 故障文件库 v2（2026-09 重构：移动端公开端点，无需登录） ==========
+
+/**
+ * 移动端获取公开的故障文件列表
+ * @param {Object} params { kind?: 'pdf'|'image'|'doc' }
+ */
+export function getPublicFaultFiles(params = {}) {
+  const p = {}
+  if (params.kind) p.kind = params.kind
+  return api.get('/fault-files', { params: p })
+}
