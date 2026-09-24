@@ -12,8 +12,8 @@ workers = int(__import__('os').environ.get('GUNICORN_WORKERS', 4))
 # 每个 worker 的线程数
 threads = 2
 
-# worker 超时（秒）
-timeout = int(__import__('os').environ.get('GUNICORN_TIMEOUT', 60))
+# worker 超时（秒）：大文件上传需要更长（30MB PDF + 慢网络 ≥ 60s）
+timeout = int(__import__('os').environ.get('GUNICORN_TIMEOUT', 180))
 
 # 请求队列满后丢弃新连接（防 DoS）
 backlog = 2048

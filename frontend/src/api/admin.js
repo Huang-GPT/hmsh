@@ -2,7 +2,25 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: '/api',
-  timeout: 10000
+  // 默认 10s 太短：上传 30MB 文件需要更多时间。
+  // 大文件上传走专门的 uploadClient（timeout=180s）。
+  timeout: 30000
+})
+
+// 大文件上传专用 client（30MB PDF/文档需要充足时间）
+const uploadApi = axios.create({
+  baseURL: '/api',
+  timeout: 180000  // 3 分钟
+})
+
+// 复用 admin 的 token 拦截器（保证上传接口也带 token）
+uploadApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem('admin_token')
+  if (token) {
+    config.headers = config.headers || {}
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
 })
 
 // ---- 拦截器：自动带 token + 把后端返回的 Authorization header 落 localStorage ----
@@ -257,7 +275,8 @@ export function uploadFaultFile(file, description = '', onProgress = null) {
   const form = new FormData()
   form.append('file', file)
   if (description) form.append('description', description)
-  return api.post('/admin/fault-files', form, {
+  // 用大文件专用 client（180s timeout）覆盖默认 api 的 30s
+  return uploadApi.post('/admin/fault-files', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
     onUploadProgress: onProgress,
   })
