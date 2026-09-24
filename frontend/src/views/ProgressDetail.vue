@@ -22,14 +22,19 @@
     <template v-else-if="order">
       <!-- 顶部状态卡 -->
       <div class="status-card">
-        <div class="status-no">{{ order.order_no }}</div>
-        <van-tag :type="statusTagType(order.status)" size="large">
+        <div class="status-bg status-bg-1"></div>
+        <div class="status-bg status-bg-2"></div>
+        <div class="status-info">
+          <div class="status-no">{{ order.order_no }}</div>
+          <div class="status-meta">创建于 {{ formatDate(order.created_at) }}</div>
+        </div>
+        <van-tag :type="statusTagType(order.status)" size="large" class="status-tag">
           {{ order.status_cn || statusText[order.status] }}
         </van-tag>
       </div>
 
       <!-- 处理时间线 -->
-      <div class="timeline-card">
+      <div class="card">
         <div class="card-title">
           <van-icon name="clock-o" /> 处理进度
         </div>
@@ -42,7 +47,7 @@
       </div>
 
       <!-- 产品信息 -->
-      <div class="info-card">
+      <div class="card">
         <div class="card-title"><van-icon name="goods-o" /> 产品信息</div>
         <van-cell title="产品名称" :value="order.product_name || order.product_model || '—'" />
         <van-cell title="产品型号" :value="order.product_model || '—'" />
@@ -52,7 +57,7 @@
       </div>
 
       <!-- 故障信息 -->
-      <div class="info-card">
+      <div class="card">
         <div class="card-title"><van-icon name="warning-o" /> 故障信息</div>
         <van-cell title="故障分类" :value="order.fault_category_name || '—'" />
         <van-cell title="故障类型" :value="order.fault_type || '—'" />
@@ -80,7 +85,7 @@
       </div>
 
       <!-- 上门时间 -->
-      <div class="info-card" v-if="order.appointment_date || order.appointment_period">
+      <div class="card" v-if="order.appointment_date || order.appointment_period">
         <div class="card-title"><van-icon name="calendar-o" /> 期望上门</div>
         <van-cell
           title="日期"
@@ -89,7 +94,7 @@
       </div>
 
       <!-- 服务信息 -->
-      <div class="info-card" v-if="order.service_point_name || order.engineer_name || order.assigned_engineer_name">
+      <div class="card" v-if="order.service_point_name || order.engineer_name || order.assigned_engineer_name">
         <div class="card-title"><van-icon name="service-o" /> 服务信息</div>
         <van-cell v-if="order.service_point_name" title="服务点" :value="order.service_point_name" />
         <van-cell
@@ -100,11 +105,11 @@
       </div>
 
       <!-- 拒绝/取消原因 -->
-      <div v-if="order.reject_reason" class="info-card">
+      <div v-if="order.reject_reason" class="card">
         <div class="card-title"><van-icon name="close-circle-o" /> 拒绝原因</div>
         <div class="reject-text">{{ order.reject_reason }}</div>
       </div>
-      <div v-if="order.cancel_reason" class="info-card">
+      <div v-if="order.cancel_reason" class="card">
         <div class="card-title"><van-icon name="cross" /> 撤销原因</div>
         <div class="reject-text">{{ order.cancel_reason }}</div>
       </div>
@@ -279,106 +284,124 @@ export default {
 <style scoped>
 .progress-detail {
   min-height: 100vh;
-  background: #f5f6f8;
-  padding-top: 46px;
+  background: var(--color-bg-page);
+  padding-top: var(--nav-bar-height);
   padding-bottom: 32px;
 }
 .pd-spacer { height: 0; }
 .loading-tip, .error-tip {
-  padding: 60px 16px;
+  padding: 60px var(--space-4);
   text-align: center;
 }
+
+/* ===== 顶部状态卡 ===== */
 .status-card {
-  background: linear-gradient(135deg, #1989fa 0%, #0f6fdb 100%);
+  position: relative;
+  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
   color: #fff;
-  margin: 12px 12px 0;
-  border-radius: 10px;
-  padding: 18px 16px;
+  margin: var(--space-3) var(--space-4) 0;
+  border-radius: var(--radius-md);
+  padding: var(--space-5) var(--space-4);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(25, 137, 250, 0.18);
+}
+.status-bg {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.10);
+}
+.status-bg-1 {
+  width: 160px; height: 160px;
+  top: -60px; right: -40px;
+}
+.status-bg-2 {
+  width: 100px; height: 100px;
+  bottom: -40px; left: -30px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.status-info {
+  position: relative;
+  flex: 1;
 }
 .status-no {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
   letter-spacing: 0.5px;
+  font-family: ui-monospace, monospace;
 }
-.timeline-card, .info-card {
-  background: #fff;
-  margin: 12px 12px 0;
-  border-radius: 10px;
-  padding: 14px 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+.status-meta {
+  font-size: var(--text-sm);
+  opacity: 0.85;
+  margin-top: var(--space-1);
+}
+.status-tag {
+  position: relative;
+  font-weight: var(--font-semibold);
+}
+
+/* ===== 信息卡 ===== */
+.card {
+  background: var(--color-bg-card);
+  margin: var(--space-3) var(--space-4) 0;
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-card);
 }
 .card-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 10px;
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
+  color: var(--color-text);
+  margin-bottom: var(--space-3);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
 }
-.card-title .van-icon { color: #1989fa; }
-.step-status { font-size: 14px; color: #333; }
-.step-time { font-size: 12px; color: #999; margin-top: 2px; }
-.multiline { white-space: pre-wrap; word-break: break-all; line-height: 1.5; }
-.image-block { padding: 8px 0; }
-.image-label { color: #999; font-size: 13px; margin-bottom: 8px; }
+.card-title .van-icon {
+  color: var(--color-primary);
+}
+.step-status {
+  font-size: var(--text-base);
+  color: var(--color-text);
+}
+.step-time {
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+  margin-top: var(--space-1);
+}
+.multiline {
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.5;
+}
+.image-block {
+  padding: var(--space-2) 0;
+}
+.image-label {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-2);
+}
 .image-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-}
-.log-item {
-  border-left: 3px solid #1989fa;
-  padding: 8px 10px;
-  margin: 8px 0;
-  background: #f7f9fc;
-  border-radius: 0 6px 6px 0;
-}
-.log-item.log-note {
-  border-left-color: #1989fa;
-  background: #eef5ff;
-}
-.log-item.log-status {
-  border-left-color: #07c160;
-  background: #f0fbf4;
-}
-.log-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-.log-time { font-size: 12px; color: #999; }
-.log-op { font-size: 13px; color: #666; margin-bottom: 2px; }
-.log-remark {
-  font-size: 14px;
-  color: #333;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-.log-images {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
+  gap: var(--space-2);
 }
 .reject-text {
-  color: #c45656;
-  font-size: 14px;
+  color: var(--color-danger);
+  font-size: var(--text-base);
   line-height: 1.5;
   white-space: pre-wrap;
 }
 .action-bar {
-  margin: 20px 16px 8px;
+  margin: var(--space-5) var(--space-4) var(--space-2);
 }
 .action-bar-tip {
   text-align: center;
-  color: #999;
-  font-size: 12px;
-  padding: 20px 16px;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-sm);
+  padding: var(--space-5) var(--space-4);
 }
 </style>

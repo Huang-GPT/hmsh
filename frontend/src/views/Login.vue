@@ -3,13 +3,15 @@
     <van-nav-bar title="终端登录" :border="false" />
 
     <div class="login-hero">
+      <div class="hero-bg-circle hero-bg-1"></div>
+      <div class="hero-bg-circle hero-bg-2"></div>
       <div class="hero-icon">📱</div>
       <div class="hero-title">欢迎使用售后绑定</div>
       <div class="hero-sub">输入您的手机号即可登录</div>
     </div>
 
     <div class="login-form">
-      <van-cell-group inset>
+      <van-cell-group inset class="form-card">
         <van-field
           v-model="phone"
           type="tel"
@@ -27,6 +29,7 @@
           :loading="loading"
           :disabled="!canLogin"
           @click="onLogin"
+          class="login-btn"
         >登录</van-button>
       </div>
       <p class="hint">首次登录将自动注册账号</p>
@@ -98,37 +101,79 @@ function getToken() {
 <style scoped>
 .login-page {
   min-height: 100vh;
-  background: #f5f6f8;
-  padding-top: 46px;
+  background: var(--color-bg-page);
+  padding-top: var(--nav-bar-height);
 }
+
+/* ===== 顶部 Hero（带装饰圆）===== */
 .login-hero {
+  position: relative;
   text-align: center;
-  padding: 40px 20px 24px;
+  padding: 56px 20px 32px;
+  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  color: #fff;
+  overflow: hidden;
+}
+.hero-bg-circle {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+}
+.hero-bg-1 {
+  width: 180px; height: 180px;
+  top: -60px; right: -40px;
+}
+.hero-bg-2 {
+  width: 120px; height: 120px;
+  bottom: -40px; left: -20px;
+  background: rgba(255, 255, 255, 0.06);
 }
 .hero-icon {
+  position: relative;
   font-size: 56px;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
 }
 .hero-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 6px;
+  position: relative;
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  margin-bottom: var(--space-1);
+  letter-spacing: 0.5px;
 }
 .hero-sub {
-  font-size: 13px;
-  color: #6b7280;
+  position: relative;
+  font-size: var(--text-sm);
+  opacity: 0.92;
 }
+
+/* ===== 表单区 ===== */
 .login-form {
-  padding: 0 16px;
+  padding: 0 var(--space-4);
+  margin-top: -16px;
+  position: relative;
+  z-index: 1;
+}
+.form-card {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
 }
 .submit-row {
-  padding: 16px 0 8px;
+  padding: var(--space-4) 0 var(--space-2);
+}
+.login-btn {
+  height: 44px !important;
+  font-size: var(--text-md) !important;
+  font-weight: var(--font-medium);
+  background: linear-gradient(135deg, var(--brand-400), var(--brand-600)) !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(25, 137, 250, 0.25);
 }
 .hint {
   text-align: center;
-  font-size: 12px;
-  color: #9ca3af;
-  margin-top: 8px;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+  margin-top: var(--space-2);
 }
 </style>

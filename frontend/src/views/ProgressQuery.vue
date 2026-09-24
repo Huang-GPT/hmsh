@@ -73,7 +73,7 @@
     </template>
 
     <div class="bottom-menu">
-      <van-tabbar v-model="activeMenu">
+      <van-tabbar v-model="activeMenu" active-color="#1989fa">
         <van-tabbar-item icon="service-o" to="/">品牌服务</van-tabbar-item>
         <van-tabbar-item icon="user-o" to="/user">我的</van-tabbar-item>
       </van-tabbar>
@@ -187,56 +187,78 @@ export default {
 <style scoped>
 .progress-query {
   min-height: 100vh;
-  background: #f5f6f8;
-  padding-top: 46px;
-  padding-bottom: 60px;
+  background: var(--color-bg-page);
+  padding-top: var(--nav-bar-height);
+  padding-bottom: calc(var(--tab-bar-height) + var(--space-4));
 }
 .pq-spacer { height: 0; }
 .login-tip {
-  padding: 60px 16px;
+  padding: 60px var(--space-4);
 }
 .empty-block {
   padding: 40px 0;
 }
+
+/* ===== 工单卡片 ===== */
 .order-card {
-  background: #fff;
-  border-radius: 10px;
-  margin: 12px 12px 0;
-  padding: 14px 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  margin: var(--space-3) var(--space-4);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-card);
   cursor: pointer;
-  transition: transform .15s;
+  transition: all var(--transition-base);
 }
-.order-card:active { transform: scale(0.99); }
+.order-card:active {
+  transform: scale(0.99);
+  box-shadow: var(--shadow-hover);
+}
 .card-row {
   display: flex;
   align-items: center;
   line-height: 22px;
-  font-size: 14px;
-  color: #333;
-  margin-top: 6px;
+  font-size: var(--text-base);
+  color: var(--color-text);
+  margin-top: var(--space-1);
 }
 .card-row-top {
   justify-content: space-between;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
   margin-top: 0;
 }
-.order-no { color: #222; }
+.order-no {
+  color: var(--color-text);
+  font-family: ui-monospace, monospace;
+}
 .card-row-bottom {
   justify-content: space-between;
-  margin-top: 10px;
-  font-size: 12px;
-  color: #999;
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
 }
-.lbl { color: #999; flex-shrink: 0; }
-.val { color: #333; }
+.lbl {
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+.val {
+  color: var(--color-text);
+}
 .val.ellipsis {
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  flex: 1; min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
-.meta-r { color: #1989fa; }
+.meta-r {
+  color: var(--color-primary);
+}
 .bottom-menu {
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
 }
 </style>

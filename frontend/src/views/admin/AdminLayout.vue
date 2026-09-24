@@ -2,7 +2,13 @@
   <div class="admin-layout">
     <div class="sidebar">
       <div class="logo">
-        <h3>红门售后管理</h3>
+        <div class="logo-mark">
+          <van-icon name="setting-o" size="22" color="#fff" />
+        </div>
+        <div class="logo-text">
+          <h3>红门售后管理</h3>
+          <span class="logo-sub">After-Sales System</span>
+        </div>
       </div>
       <div class="menu-list">
         <div
@@ -25,8 +31,19 @@
     </div>
     <div class="main-content">
       <div class="topbar">
-        <span class="admin-name">{{ adminName }}</span>
-        <span v-if="adminRole" class="admin-role">[{{ adminRole }}]</span>
+        <div class="topbar-title">
+          <van-icon :name="currentMenuIcon" class="topbar-icon" />
+          <span>{{ currentMenuTitle }}</span>
+        </div>
+        <div class="topbar-user">
+          <div class="user-avatar">
+            {{ (adminName || 'U').charAt(0) }}
+          </div>
+          <div class="user-meta">
+            <span class="admin-name">{{ adminName }}</span>
+            <span v-if="adminRole" class="admin-role">{{ adminRole }}</span>
+          </div>
+        </div>
       </div>
       <div class="page-container">
         <router-view />
@@ -81,6 +98,14 @@ export default {
       } catch (e) {
         return []
       }
+    },
+    currentMenuTitle() {
+      const m = this.menuItems.find(i => i.path === this.activeMenu)
+      return m ? m.title : '红门售后管理'
+    },
+    currentMenuIcon() {
+      const m = this.menuItems.find(i => i.path === this.activeMenu)
+      return m ? m.icon : 'wap-home-o'
     }
   },
   created() {
@@ -133,14 +158,15 @@ export default {
 .admin-layout {
   display: flex;
   min-height: 100vh;
-  background: #f0f2f5;
+  background: var(--color-bg-page);
 }
+
+/* ===== 侧边栏 ===== */
 .sidebar {
-  width: 200px;
+  width: var(--sidebar-width);
   background: #001529;
   color: white;
   display: flex;
-  flex-direction: flex-start;
   flex-direction: column;
   position: fixed;
   left: 0;
@@ -149,75 +175,157 @@ export default {
   z-index: 100;
 }
 .logo {
-  padding: 20px 16px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 18px 16px;
   border-bottom: 1px solid rgba(255,255,255,0.1);
 }
-.logo h3 {
+.logo-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(25, 137, 250, 0.4);
+}
+.logo-text h3 {
   color: white;
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
+  font-weight: var(--font-semibold);
+  line-height: 1.3;
 }
+.logo-sub {
+  display: block;
+  font-size: var(--text-xs);
+  color: rgba(255,255,255,0.4);
+  margin-top: 1px;
+}
+
+/* ===== 菜单 ===== */
 .menu-list {
   flex: 1;
-  padding: 8px 0;
+  padding: var(--space-2) 0;
+  overflow-y: auto;
 }
 .menu-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 20px;
+  gap: var(--space-2);
+  padding: 11px 20px;
   color: rgba(255,255,255,0.65);
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all var(--transition-base);
+  font-size: var(--text-base);
+  position: relative;
 }
 .menu-item:hover {
   color: white;
-  background: rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.05);
 }
 .menu-item.active {
   color: white;
-  background: #1976d2;
+  background: var(--brand-500);
+}
+.menu-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #fff;
 }
 .menu-empty {
-  padding: 16px 20px;
+  padding: var(--space-4) 20px;
   color: rgba(255,255,255,0.4);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 .sidebar-footer {
-  padding: 16px;
+  padding: var(--space-3);
   text-align: center;
   border-top: 1px solid rgba(255,255,255,0.1);
 }
+
+/* ===== 主内容区 ===== */
 .main-content {
   flex: 1;
-  margin-left: 200px;
+  margin-left: var(--sidebar-width);
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
 }
+
+/* ===== 顶部 bar ===== */
 .topbar {
-  height: 48px;
-  background: white;
+  height: var(--top-bar-height);
+  background: #fff;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  padding: 0 24px;
-  gap: 8px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  justify-content: space-between;
+  padding: 0 var(--space-6);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.topbar-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
+  color: var(--color-text);
+}
+.topbar-icon {
+  color: var(--color-primary);
+  font-size: var(--text-lg);
+}
+.topbar-user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-semibold);
+  font-size: var(--text-base);
+  box-shadow: 0 2px 6px rgba(25, 137, 250, 0.25);
+}
+.user-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
 }
 .admin-name {
-  font-size: 14px;
-  color: #666;
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  color: var(--color-text);
 }
 .admin-role {
-  font-size: 12px;
-  color: #1976d2;
-  background: rgba(25,118,210,0.08);
-  padding: 2px 8px;
-  border-radius: 4px;
+  font-size: var(--text-xs);
+  color: var(--color-primary);
+  background: var(--brand-50);
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  margin-top: 2px;
+  align-self: flex-start;
 }
+
+/* ===== 内容容器 ===== */
 .page-container {
-  padding: 20px;
+  padding: var(--space-5);
   flex: 1;
 }
 </style>

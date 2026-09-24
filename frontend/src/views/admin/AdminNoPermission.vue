@@ -5,7 +5,7 @@
       description=" "
     >
       <template #image>
-        <van-icon name="warning-o" size="120" color="#f5a623" />
+        <van-icon name="warning-o" size="120" color="var(--color-warning)" />
       </template>
     </van-empty>
 
@@ -103,68 +103,69 @@ export default {
 
 <style scoped>
 .no-permission {
-  padding: 24px 0;
+  padding: var(--space-6) 0;
 }
 .card {
   max-width: 560px;
   margin: 0 auto;
-  background: white;
-  border-radius: 8px;
-  padding: 24px 32px 32px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-6) var(--space-8) var(--space-8);
+  box-shadow: var(--shadow-md);
 }
 .title {
   text-align: center;
-  font-size: 20px;
-  color: #f5a623;
-  margin: 0 0 16px;
+  font-size: var(--text-xl);
+  color: var(--color-warning);
+  margin: 0 0 var(--space-4);
+  font-weight: var(--font-semibold);
 }
 .hint {
   text-align: center;
-  color: #666;
-  font-size: 14px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-base);
   line-height: 1.6;
-  margin: 0 0 24px;
+  margin: 0 0 var(--space-6);
 }
 .perm-code {
   display: inline-block;
   background: #fff4e5;
   color: #d97706;
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-xs);
   font-family: 'Courier New', monospace;
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 .meta {
-  border-top: 1px solid #f0f0f0;
-  padding-top: 16px;
-  margin-bottom: 24px;
+  border-top: 1px solid var(--color-divider);
+  padding-top: var(--space-4);
+  margin-bottom: var(--space-6);
 }
 .meta-row {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 8px 0;
-  font-size: 14px;
-  gap: 12px;
+  padding: var(--space-2) 0;
+  font-size: var(--text-base);
+  gap: var(--space-3);
 }
 .meta-label {
-  color: #999;
+  color: var(--color-text-tertiary);
   flex-shrink: 0;
 }
 .meta-value {
-  color: #333;
+  color: var(--color-text);
   text-align: right;
   word-break: break-all;
 }
 .meta-value.perms {
   font-family: 'Courier New', monospace;
-  font-size: 12px;
-  color: #1976d2;
+  font-size: var(--text-sm);
+  color: var(--color-primary);
 }
 .actions {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 }
 </style>

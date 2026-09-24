@@ -92,7 +92,7 @@
     <div class="bound-section">
       <div class="section-header">
         <span class="section-title">已绑定产品</span>
-        <span class="section-count">共 {{ boundProducts.length }} 件</span>
+        <span class="section-meta">共 {{ boundProducts.length }} 件</span>
       </div>
 
       <van-pull-refresh v-model="refreshing" @refresh="onRefresh" success-text="刷新成功">
@@ -324,56 +324,62 @@ export default {
 <style scoped>
 .product-bind {
   min-height: 100vh;
-  background: #f5f6f8;
-  padding-top: 46px;
+  background: var(--color-bg-page);
+  padding-top: var(--nav-bar-height);
   padding-bottom: 20px;
 }
 .nav-user {
-  font-size: 12px;
-  color: #1989fa;
+  font-size: var(--text-sm);
+  color: var(--color-primary);
   cursor: pointer;
-  padding: 0 8px;
+  padding: 0 var(--space-2);
 }
 .scan-hint {
-  margin-top: 10px;
-  padding: 8px 12px;
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   background: rgba(255, 255, 255, 0.18);
-  border-radius: 6px;
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
   color: #fff;
   text-align: center;
   line-height: 1.6;
 }
+
+/* ===== Banner ===== */
 .bind-banner {
-  background: linear-gradient(135deg, #4a90e2, #1989fa);
+  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
   color: #fff;
-  padding: 28px 20px 24px;
+  padding: 32px 20px 28px;
   text-align: center;
+  box-shadow: var(--shadow-sm);
 }
 .bind-banner-title {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 4px;
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  margin-bottom: var(--space-1);
 }
 .bind-banner-sub {
-  font-size: 13px;
-  opacity: 0.9;
-  margin-bottom: 18px;
+  font-size: var(--text-sm);
+  opacity: 0.92;
+  margin-bottom: var(--space-4);
 }
 .scan-btn {
   background: #fff !important;
-  color: #1989fa !important;
+  color: var(--color-primary) !important;
   border: none;
-  font-weight: 600;
+  font-weight: var(--font-semibold);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
+
+/* ===== 分隔线 ===== */
 .manual-section {
-  margin: 16px 0;
+  margin: var(--space-4) 0;
 }
 .divider {
   text-align: center;
-  margin: 16px 0 12px;
-  color: #999;
-  font-size: 12px;
+  margin: var(--space-4) 0 var(--space-3);
+  color: var(--color-text-tertiary);
+  font-size: var(--text-sm);
   position: relative;
 }
 .divider::before,
@@ -383,85 +389,91 @@ export default {
   top: 50%;
   width: 30%;
   height: 1px;
-  background: #e5e7eb;
+  background: var(--color-border);
 }
 .divider::before { left: 0; }
 .divider::after { right: 0; }
 .divider span {
-  background: #f5f6f8;
-  padding: 0 12px;
+  background: var(--color-bg-page);
+  padding: 0 var(--space-3);
+  position: relative;
+  z-index: 1;
 }
 .submit-row {
-  padding: 12px 16px 0;
+  padding: var(--space-3) var(--space-4) 0;
 }
+
+/* ===== 二维码推荐区域 ===== */
 .manual-qr-primary {
   background: #fffbe8;
   border: 1px solid #ffe58f;
-  border-radius: 10px;
-  margin: 12px 16px;
-  padding-bottom: 8px;
+  border-radius: var(--radius-md);
+  margin: var(--space-3) var(--space-4);
+  padding-bottom: var(--space-2);
 }
 .manual-qr-primary .divider span {
   background: #fffbe8;
   color: #d48806;
-  font-weight: 600;
+  font-weight: var(--font-semibold);
 }
 .qr-helper-text {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: #8c6d3f;
-  padding: 0 16px 8px;
+  padding: 0 var(--space-4) var(--space-2);
   line-height: 1.5;
 }
+
+/* ===== 已绑定列表 ===== */
 .bound-section {
-  margin: 16px 0;
+  margin: var(--space-4) 0;
 }
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding: 0 16px 12px;
+  padding: 0 var(--space-4) var(--space-3);
 }
 .section-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #1f2937;
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
+  color: var(--color-text);
 }
-.section-count {
-  font-size: 12px;
-  color: #6b7280;
+.section-meta {
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
 }
 .list-loading {
-  padding: 0 16px;
+  padding: 0 var(--space-4);
 }
 .bound-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 0 16px;
+  gap: var(--space-3);
+  padding: 0 var(--space-4);
 }
 .bound-card {
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 .bound-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .bound-name {
-  font-weight: 600;
-  color: #1f2937;
+  font-weight: var(--font-semibold);
+  color: var(--color-text);
 }
 .bound-meta {
-  font-size: 12px;
-  color: #6b7280;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
   line-height: 1.6;
 }
 .op-text {
-  font-size: 13px;
-  color: #6b7280;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
 }
 .empty-btn {
-  margin-top: 12px;
+  margin-top: var(--space-3);
 }
 </style>

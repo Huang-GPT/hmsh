@@ -1,6 +1,9 @@
 <template>
   <div class="admin-service-points">
-    <h3>服务点维护</h3>
+    <div class="page-header">
+      <h3>服务点维护</h3>
+      <p class="page-sub">管理各地区服务点及其下属工程师</p>
+    </div>
 
     <div class="toolbar">
       <div class="toolbar-row toolbar-top">
@@ -310,32 +313,65 @@ export default {
 </script>
 
 <style scoped>
+.admin-service-points { max-width: 1400px; }
+.page-header { margin-bottom: var(--space-5); }
 .admin-service-points h3 {
-  margin: 0 0 16px;
-  color: #1f2937;
-  font-size: 18px;
+  margin: 0 0 var(--space-1);
+  color: var(--color-text);
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
 }
-.toolbar { margin-bottom: 12px; }
-.toolbar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.page-sub {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+}
+.toolbar {
+  margin-bottom: var(--space-4);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-card);
+}
+.toolbar-row { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); flex-wrap: wrap; }
+.toolbar-row:last-child { margin-bottom: 0; }
 .search-box { flex: 1; min-width: 280px; }
 .filter-chip {
-  display: inline-block; padding: 4px 12px; border-radius: 14px;
-  background: #f3f4f6; font-size: 13px; color: #4b5563; cursor: pointer;
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-muted);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  border: 1px solid transparent;
 }
-.filter-chip:hover { background: #e5e7eb; }
-.filter-chip.active { background: #1989fa; color: white; }
+.filter-chip:hover { background: var(--color-border-light); }
+.filter-chip.active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
 
-.table-wrap { overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 6px; }
-.sp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.sp-table th { background: #f9fafb; padding: 10px 8px; text-align: left; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
-.sp-table td { padding: 10px 8px; border-bottom: 1px solid #f3f4f6; color: #4b5563; vertical-align: middle; }
-.sp-table tbody tr:hover td { background: #f9fafb; }
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-card);
+  box-shadow: var(--shadow-card);
+}
+.sp-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.sp-table th { background: var(--color-bg-muted); padding: 12px var(--space-2); text-align: left; font-weight: var(--font-semibold); color: var(--color-text-secondary); border-bottom: 1px solid var(--color-border); white-space: nowrap; }
+.sp-table td { padding: 12px var(--space-2); border-bottom: 1px solid var(--color-divider); color: var(--color-text-secondary); vertical-align: middle; }
+.sp-table tbody tr { transition: background var(--transition-fast); }
+.sp-table tbody tr:hover td { background: var(--brand-50); }
 .sp-table tbody tr.row-disabled td { opacity: 0.6; }
-.col-mono { font-family: ui-monospace, monospace; font-size: 12px; }
-.col-time { font-family: ui-monospace, monospace; font-size: 12px; }
+.col-mono { font-family: ui-monospace, monospace; font-size: var(--text-sm); }
+.col-time { font-family: ui-monospace, monospace; font-size: var(--text-sm); }
 .col-address { max-width: 280px; }
-.state-cell { text-align: center; padding: 40px; color: #9ca3af; }
-.empty-cell { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px; }
+.state-cell { text-align: center; padding: 40px; color: var(--color-text-tertiary); }
+.empty-cell { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); padding: var(--space-5); }
 .empty-icon { font-size: 36px; }
 .empty-text { font-size: 13px; color: #9ca3af; }
 

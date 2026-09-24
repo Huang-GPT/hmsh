@@ -1,6 +1,9 @@
 <template>
   <div class="admin-users">
-    <h3>用户管理</h3>
+    <div class="page-header">
+      <h3>用户管理</h3>
+      <p class="page-sub">管理后台用户、角色分配和权限</p>
+    </div>
 
     <div class="toolbar">
       <div class="toolbar-row toolbar-top">
@@ -416,36 +419,69 @@ export default {
 </script>
 
 <style scoped>
+.admin-users { max-width: 1400px; }
+.page-header { margin-bottom: var(--space-5); }
 .admin-users h3 {
-  margin: 0 0 16px;
-  color: #1f2937;
-  font-size: 18px;
+  margin: 0 0 var(--space-1);
+  color: var(--color-text);
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
 }
-.toolbar { margin-bottom: 12px; }
-.toolbar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.page-sub {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+}
+.toolbar {
+  margin-bottom: var(--space-4);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-card);
+}
+.toolbar-row { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); flex-wrap: wrap; }
+.toolbar-row:last-child { margin-bottom: 0; }
 .search-box { flex: 1; min-width: 280px; }
 .filter-chip {
-  display: inline-block; padding: 4px 12px; border-radius: 14px;
-  background: #f3f4f6; font-size: 13px; color: #4b5563; cursor: pointer;
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-muted);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  border: 1px solid transparent;
 }
-.filter-chip:hover { background: #e5e7eb; }
-.filter-chip.active { background: #1989fa; color: white; }
+.filter-chip:hover { background: var(--color-border-light); }
+.filter-chip.active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
 
-.table-wrap { overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 6px; }
-.user-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.user-table th { background: #f9fafb; padding: 10px 8px; text-align: left; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
-.user-table td { padding: 10px 8px; border-bottom: 1px solid #f3f4f6; color: #4b5563; vertical-align: middle; }
-.user-table tbody tr:hover td { background: #f9fafb; }
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-card);
+  box-shadow: var(--shadow-card);
+}
+.user-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.user-table th { background: var(--color-bg-muted); padding: 12px var(--space-2); text-align: left; font-weight: var(--font-semibold); color: var(--color-text-secondary); border-bottom: 1px solid var(--color-border); white-space: nowrap; }
+.user-table td { padding: 12px var(--space-2); border-bottom: 1px solid var(--color-divider); color: var(--color-text-secondary); vertical-align: middle; }
+.user-table tbody tr { transition: background var(--transition-fast); }
+.user-table tbody tr:hover td { background: var(--brand-50); }
 .user-table tbody tr.row-disabled td { opacity: 0.6; }
-.col-account code { background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-family: ui-monospace, monospace; font-size: 12px; color: #1989fa; }
-.col-mono { font-family: ui-monospace, monospace; font-size: 12px; }
-.col-time { font-family: ui-monospace, monospace; font-size: 12px; }
-.row-meta { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+.col-account code { background: var(--color-bg-muted); padding: 2px 6px; border-radius: var(--radius-xs); font-family: ui-monospace, monospace; font-size: var(--text-sm); color: var(--color-primary); }
+.col-mono { font-family: ui-monospace, monospace; font-size: var(--text-sm); }
+.col-time { font-family: ui-monospace, monospace; font-size: var(--text-sm); }
+.row-meta { font-size: var(--text-xs); color: var(--color-text-tertiary); margin-top: 2px; }
 .name-cell { display: flex; flex-direction: column; gap: 2px; }
-.real-name { font-weight: 500; color: #1f2937; }
-.nick { font-size: 11px; color: #9ca3af; }
-.state-cell { text-align: center; padding: 40px; color: #9ca3af; }
-.empty-cell { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px; }
+.real-name { font-weight: var(--font-medium); color: var(--color-text); }
+.nick { font-size: var(--text-xs); color: var(--color-text-tertiary); }
+.state-cell { text-align: center; padding: 40px; color: var(--color-text-tertiary); }
+.empty-cell { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); padding: var(--space-5); }
 .empty-icon { font-size: 36px; }
 .empty-text { font-size: 13px; color: #9ca3af; }
 .roles-cell { display: flex; flex-wrap: wrap; gap: 4px; }

@@ -11,26 +11,32 @@
 
     <!-- ============ 视图1：分类列表 ============ -->
     <div v-if="view === 'categories'" class="cat-view">
-      <van-search
-        v-model="catKeyword"
-        placeholder="搜索分类"
-        @search="loadCategories"
-      />
-      <van-cell-group v-if="filteredCategories.length">
-        <van-cell
-          v-for="cat in filteredCategories"
-          :key="cat.id"
-          :title="cat.name"
-          :label="`${fileCountOf(cat)} 个文件`"
-          is-link
-          @click="openCategory(cat)"
-        >
-          <template #icon>
-            <span class="cat-icon">{{ cat.icon || '🔧' }}</span>
-          </template>
-        </van-cell>
-      </van-cell-group>
-      <van-empty v-else description="暂无故障分类" />
+      <div class="search-wrap">
+        <van-search
+          v-model="catKeyword"
+          placeholder="搜索分类"
+          @search="loadCategories"
+          shape="round"
+          background="transparent"
+        />
+      </div>
+      <div class="cat-list">
+        <van-cell-group v-if="filteredCategories.length" inset>
+          <van-cell
+            v-for="cat in filteredCategories"
+            :key="cat.id"
+            :title="cat.name"
+            :label="`${fileCountOf(cat)} 个文件`"
+            is-link
+            @click="openCategory(cat)"
+          >
+            <template #icon>
+              <span class="cat-icon">{{ cat.icon || '🔧' }}</span>
+            </template>
+          </van-cell>
+        </van-cell-group>
+        <van-empty v-else description="暂无故障分类" />
+      </div>
     </div>
 
     <!-- ============ 视图2：分类下的文件列表 ============ -->
@@ -53,7 +59,7 @@
           class="fault-group"
         >
           <div v-if="grp.faultTitle" class="fault-title">{{ grp.faultTitle }}</div>
-          <van-cell-group>
+          <van-cell-group inset>
             <van-cell
               v-for="att in grp.attachments"
               :key="att.id || att.url"
@@ -208,50 +214,70 @@ export default {
 
 <style scoped>
 .common-faults {
-  background: #f7f8fa;
+  background: var(--color-bg-page);
   min-height: 100vh;
 }
+
+/* ============ 视图1：分类列表 ============ */
 .cat-view,
 .files-view {
-  padding: 0 0 16px;
+  padding: 0 0 var(--space-4);
+}
+.search-wrap {
+  padding: var(--space-3) var(--space-4) 0;
+}
+.cat-list {
+  padding: var(--space-2) 0;
 }
 .cat-icon {
   font-size: 22px;
-  margin-right: 10px;
-  margin-left: 4px;
+  margin-right: var(--space-2);
+  margin-left: var(--space-1);
   flex-shrink: 0;
 }
+
+/* ============ 视图2：分类横幅 ============ */
 .cat-banner {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: white;
-  border-bottom: 1px solid #ebedf0;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-card);
+  border-bottom: 1px solid var(--color-divider);
+  margin: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  color: var(--color-primary);
+}
+.cat-banner .van-icon {
+  font-size: 20px;
 }
 .banner-text {
-  font-size: 15px;
-  color: #1f2937;
-  font-weight: 500;
+  font-size: var(--text-md);
+  color: var(--color-text);
+  font-weight: var(--font-semibold);
 }
+
+/* ============ 故障分组 ============ */
 .fault-group {
-  margin-bottom: 12px;
+  margin: var(--space-3) 0;
 }
 .fault-title {
-  padding: 8px 16px 4px;
-  font-size: 13px;
-  color: #6b7280;
-  font-weight: 500;
+  padding: var(--space-2) calc(var(--space-4) + var(--space-3)) var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-medium);
 }
 .file-cell-icon {
-  margin-right: 10px;
-  margin-left: 4px;
+  margin-right: var(--space-2);
+  margin-left: var(--space-1);
 }
+
+/* ============ Loading / Empty ============ */
 .loading-tip,
 .empty-tip {
   padding: 40px 0;
   text-align: center;
-  color: #9ca3af;
-  font-size: 13px;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-sm);
 }
 </style>

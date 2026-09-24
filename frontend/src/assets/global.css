@@ -1,0 +1,289 @@
+/* ==========================================================================
+   红门售后系统 - 全局样式 & 通用组件类
+   引入 theme.css 后，所有页面可直接使用统一的 class
+   ========================================================================== */
+
+/* ============ 引入设计变量 ============ */
+@import './theme.css';
+
+/* ============ 全局重置（增强）============ */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+html, body {
+  height: 100%;
+  width: 100%;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+    'Helvetica Neue', Helvetica, 'Microsoft YaHei', Arial, sans-serif;
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background-color: var(--color-bg-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: var(--leading-normal);
+}
+#app {
+  min-height: 100vh;
+}
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+a:hover {
+  color: var(--color-primary-hover);
+}
+
+/* ============ Vant 主题覆盖（保持 2.12 默认）============ */
+:root {
+  --van-primary-color: var(--color-primary);
+  --van-button-primary-background: var(--color-primary);
+  --van-button-primary-border-color: var(--color-primary);
+  --van-tag-primary-color: var(--color-primary);
+  --van-nav-bar-background: var(--color-bg-elevated);
+  --van-nav-bar-title-text-color: var(--color-text);
+  --van-cell-background: transparent;
+  --van-cell-border-color: var(--color-divider);
+  --van-cell-group-inset-border-radius: var(--radius-md);
+}
+
+/* ============ 通用页面容器 ============ */
+.page {
+  min-height: 100vh;
+  background-color: var(--color-bg-page);
+  padding-top: var(--nav-bar-height);
+}
+.page--no-nav {
+  padding-top: 0;
+}
+.page--bottom-spacer {
+  padding-bottom: 60px;
+}
+
+/* ============ 通用卡片 ============ */
+.card {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-card);
+  margin: var(--space-3) 0;
+}
+.card--flush {
+  margin: 0;
+}
+.card-title {
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
+  color: var(--color-text);
+  margin-bottom: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.card-title .van-icon {
+  color: var(--color-primary);
+  font-size: var(--text-md);
+}
+.card-count {
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-normal);
+  margin-left: var(--space-1);
+}
+
+/* ============ 通用 Hero / Banner ============ */
+.hero {
+  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  color: #fff;
+  padding: var(--space-8) var(--space-5) var(--space-6);
+  text-align: center;
+}
+.hero-title {
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  margin-bottom: var(--space-2);
+}
+.hero-sub {
+  font-size: var(--text-sm);
+  opacity: 0.9;
+  margin-bottom: var(--space-4);
+}
+
+/* ============ 通用按钮 ============ */
+.btn-primary {
+  background: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: #fff !important;
+}
+.btn-primary:hover,
+.btn-primary:active {
+  background: var(--color-primary-hover) !important;
+  border-color: var(--color-primary-hover) !important;
+}
+.btn-block {
+  display: block;
+  width: 100%;
+}
+
+/* ============ 通用 Section ============ */
+.section {
+  margin: var(--space-4) 0;
+}
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0 var(--space-4) var(--space-3);
+}
+.section-title {
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
+  color: var(--color-text);
+}
+.section-meta {
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+}
+
+/* ============ 通用空状态 ============ */
+.empty {
+  padding: var(--space-10) var(--space-4);
+  text-align: center;
+}
+.empty-icon {
+  font-size: 48px;
+  opacity: 0.5;
+  margin-bottom: var(--space-2);
+}
+.empty-text {
+  font-size: var(--text-base);
+  color: var(--color-text-tertiary);
+  margin-bottom: var(--space-3);
+}
+
+/* ============ 通用 Loading ============ */
+.loading-tip {
+  padding: var(--space-10) var(--space-4);
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-sm);
+}
+
+/* ============ 通用 Divider（分隔线）============ */
+.divider {
+  text-align: center;
+  margin: var(--space-4) 0;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-sm);
+  position: relative;
+}
+.divider::before,
+.divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 30%;
+  height: 1px;
+  background: var(--color-border);
+}
+.divider::before { left: 0; }
+.divider::after { right: 0; }
+.divider span {
+  background: var(--color-bg-page);
+  padding: 0 var(--space-3);
+  position: relative;
+  z-index: 1;
+}
+
+/* ============ 通用文字工具类 ============ */
+.text-muted   { color: var(--color-text-tertiary); }
+.text-secondary { color: var(--color-text-secondary); }
+.text-primary { color: var(--color-primary); }
+.text-success { color: var(--color-success); }
+.text-warning { color: var(--color-warning); }
+.text-danger  { color: var(--color-danger); }
+.text-info    { color: var(--color-info); }
+
+.text-xs   { font-size: var(--text-xs); }
+.text-sm   { font-size: var(--text-sm); }
+.text-base { font-size: var(--text-base); }
+.text-md   { font-size: var(--text-md); }
+.text-lg   { font-size: var(--text-lg); }
+.text-xl   { font-size: var(--text-xl); }
+
+.font-medium   { font-weight: var(--font-medium); }
+.font-semibold { font-weight: var(--font-semibold); }
+.font-bold     { font-weight: var(--font-bold); }
+
+/* ============ 通用 Chip（筛选标签）============ */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-muted);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  border: 1px solid transparent;
+}
+.chip:hover {
+  background: var(--color-border-light);
+}
+.chip.active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+/* ============ 通用 Status Tag（状态色）============ */
+.tag-success { color: var(--color-success); background: var(--success-50); }
+.tag-warning { color: var(--color-warning); background: var(--warning-50); }
+.tag-danger  { color: var(--color-danger);  background: var(--danger-50); }
+.tag-info    { color: var(--color-info);    background: var(--info-50); }
+.tag-muted   { color: var(--color-text-tertiary); background: var(--color-bg-muted); }
+
+/* ============ 过渡动画 ============ */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity var(--transition-base);
+}
+.fade-enter, .fade-leave-to {
+  opacity: 0;
+}
+
+/* ============ 列表项通用 ============ */
+.list-card {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  margin: var(--space-3) 0;
+  padding: var(--space-4);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+.list-card:hover {
+  box-shadow: var(--shadow-hover);
+}
+.list-card:active {
+  transform: scale(0.99);
+}
+
+/* ============ 底部固定按钮条 ============ */
+.bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--color-bg-elevated);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  gap: var(--space-3);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
+  z-index: 100;
+}

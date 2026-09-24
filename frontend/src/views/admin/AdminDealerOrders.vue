@@ -1,6 +1,9 @@
 <template>
   <div class="admin-dealer-orders">
-    <h3>工单售后</h3>
+    <div class="page-header">
+      <h3>工单售后</h3>
+      <p class="page-sub">服务商处理工单的统一入口</p>
+    </div>
 
     <!-- 顶部 KPI 卡片 -->
     <div class="kpi-row">
@@ -568,55 +571,84 @@ export default {
 </script>
 <style scoped>
 .admin-dealer-orders {
-  background: #fff;
-  border-radius: 8px;
-  padding: 20px;
-  min-height: calc(100vh - 88px);
+  max-width: 1400px;
+}
+.page-header {
+  margin-bottom: var(--space-5);
 }
 h3 {
-  margin: 0 0 16px;
-  font-size: 18px;
-  color: #1f2937;
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  color: var(--color-text);
+}
+.page-sub {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
 }
 
 /* ===== KPI ===== */
 .kpi-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
 }
 .kpi-card {
-  border-radius: 8px;
-  padding: 14px 16px;
-  color: #fff;
+  border-radius: var(--radius-md);
+  padding: var(--space-5) var(--space-4);
   text-align: center;
+  background: var(--color-bg-card);
+  box-shadow: var(--shadow-card);
+  position: relative;
+  overflow: hidden;
+  transition: all var(--transition-base);
 }
-.kpi-warn { background: linear-gradient(135deg, #ff976a, #ee0a24); }
-.kpi-info { background: linear-gradient(135deg, #4a90e2, #1989fa); }
-.kpi-success { background: linear-gradient(135deg, #07c160, #04a655); }
-.kpi-muted { background: linear-gradient(135deg, #909399, #606266); }
+.kpi-card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
+}
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--card-color, var(--color-primary));
+}
+.kpi-warn   { --card-color: var(--color-warning); }
+.kpi-info   { --card-color: var(--color-primary); }
+.kpi-success{ --card-color: var(--color-success); }
+.kpi-muted  { --card-color: #909399; }
 .kpi-num {
-  font-size: 24px;
-  font-weight: 700;
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
   line-height: 1.2;
+  color: var(--card-color, var(--color-text));
 }
 .kpi-label {
-  font-size: 12px;
-  opacity: 0.9;
-  margin-top: 2px;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+  margin-top: var(--space-1);
 }
 
 /* ===== toolbar ===== */
 .toolbar {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-4);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-card);
 }
 .toolbar-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
   flex-wrap: wrap;
+}
+.toolbar-row:last-child {
+  margin-bottom: 0;
 }
 .search-box {
   flex: 1;
@@ -624,53 +656,61 @@ h3 {
 }
 .filter-chip {
   display: inline-block;
-  padding: 4px 12px;
-  border-radius: 14px;
-  background: #f3f4f6;
-  font-size: 13px;
-  color: #4b5563;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-muted);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
   cursor: pointer;
+  transition: all var(--transition-base);
+  border: 1px solid transparent;
 }
-.filter-chip:hover { background: #e5e7eb; }
+.filter-chip:hover {
+  background: var(--color-border-light);
+}
 .filter-chip.active {
-  background: #1989fa;
+  background: var(--color-primary);
   color: white;
+  border-color: var(--color-primary);
 }
 
 /* ===== table ===== */
 .table-wrap {
   overflow-x: auto;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-card);
+  box-shadow: var(--shadow-card);
 }
 .order-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 .order-table th {
-  background: #f9fafb;
-  padding: 10px 8px;
+  background: var(--color-bg-muted);
+  padding: 12px var(--space-2);
   text-align: left;
-  font-weight: 600;
-  color: #374151;
-  border-bottom: 1px solid #e5e7eb;
+  font-weight: var(--font-semibold);
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
 }
 .order-table td {
-  padding: 10px 8px;
-  border-bottom: 1px solid #f3f4f6;
-  color: #4b5563;
+  padding: 12px var(--space-2);
+  border-bottom: 1px solid var(--color-divider);
+  color: var(--color-text-secondary);
   vertical-align: middle;
 }
 .order-table tbody tr {
   cursor: pointer;
+  transition: background var(--transition-fast);
 }
 .order-table tbody tr:hover td {
-  background: #f9fafb;
+  background: var(--brand-50);
 }
 .order-table tbody tr.row-pending td:first-child {
-  border-left: 3px solid #ee0a24;
+  border-left: 3px solid var(--color-danger);
 }
 .col-orderno code {
   background: #f3f4f6;

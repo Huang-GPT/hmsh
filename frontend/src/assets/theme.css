@@ -1,0 +1,130 @@
+/* ==========================================================================
+   红门售后系统 - 统一设计主题 (Design Tokens)
+   所有页面引用此处的变量，避免硬编码颜色/间距/字号
+   ========================================================================== */
+
+:root {
+  /* ============ 品牌色（统一以 #1989fa 为准）============ */
+  --brand-50:  #ecf5ff;
+  --brand-100: #d6eaff;
+  --brand-200: #addcff;
+  --brand-300: #7cc4ff;
+  --brand-400: #48a3f5;
+  --brand-500: #1989fa;     /* 主品牌色 */
+  --brand-600: #0e6fd1;     /* hover */
+  --brand-700: #0b5aa9;
+  --brand-800: #0a4880;
+
+  /* ============ 状态色 ============ */
+  --success-50:  #e8f9ed;
+  --success-500: #07c160;
+  --success-600: #06a050;
+
+  --warning-50:  #fff7e8;
+  --warning-500: #ff976a;
+  --warning-600: #ee7700;
+
+  --danger-50:  #ffeaea;
+  --danger-500: #ee0a24;
+  --danger-600: #c8050d;
+
+  --info-50:  #e8f8f8;
+  --info-500: #25aeae;
+  --info-600: #1f8e8e;
+
+  --neutral-50:  #f7f8fa;
+  --neutral-100: #f0f2f5;
+  --neutral-200: #e5e7eb;
+  --neutral-300: #d1d5db;
+  --neutral-400: #9ca3af;
+  --neutral-500: #6b7280;
+  --neutral-600: #4b5563;
+  --neutral-700: #374151;
+  --neutral-800: #1f2937;
+  --neutral-900: #111827;
+
+  /* ============ 语义化别名（推荐业务代码使用）============ */
+  --color-primary:        var(--brand-500);
+  --color-primary-hover:  var(--brand-600);
+  --color-primary-light:  var(--brand-50);
+  --color-success:        var(--success-500);
+  --color-warning:        var(--warning-500);
+  --color-danger:         var(--danger-500);
+  --color-info:           var(--info-500);
+
+  --color-text:           var(--neutral-800);
+  --color-text-secondary: var(--neutral-600);
+  --color-text-tertiary:  var(--neutral-500);
+  --color-text-placeholder: var(--neutral-400);
+  --color-text-disabled:  var(--neutral-300);
+
+  --color-bg-page:        #f5f7fa;   /* 页面底色（统一） */
+  --color-bg-card:        #ffffff;
+  --color-bg-muted:       var(--neutral-50);
+  --color-bg-elevated:    #ffffff;
+
+  --color-border:         #e5e7eb;
+  --color-border-light:   #eef2f7;
+  --color-divider:        #f0f2f5;
+
+  /* ============ 圆角 ============ */
+  --radius-xs:  4px;
+  --radius-sm:  6px;
+  --radius-md:  8px;
+  --radius-lg:  12px;
+  --radius-xl:  16px;
+  --radius-full: 9999px;
+
+  /* ============ 阴影 ============ */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.10);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-hover: 0 4px 12px rgba(25, 137, 250, 0.12);
+
+  /* ============ 间距（4px 网格）============ */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ============ 字号 ============ */
+  --text-xs:   11px;
+  --text-sm:   12px;
+  --text-base: 14px;
+  --text-md:   15px;
+  --text-lg:   16px;
+  --text-xl:   18px;
+  --text-2xl:  20px;
+  --text-3xl:  24px;
+  --text-4xl:  28px;
+
+  /* ============ 字重 ============ */
+  --font-normal:   400;
+  --font-medium:   500;
+  --font-semibold: 600;
+  --font-bold:     700;
+
+  /* ============ 行高 ============ */
+  --leading-tight: 1.3;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.7;
+
+  /* ============ 动效 ============ */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.2s ease;
+  --transition-slow: 0.3s ease;
+  --transition-spring: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ============ 布局尺寸 ============ */
+  --nav-bar-height: 46px;
+  --tab-bar-height: 50px;
+  --sidebar-width: 220px;
+  --top-bar-height: 56px;
+}

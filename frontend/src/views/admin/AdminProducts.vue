@@ -1,6 +1,9 @@
 <template>
   <div class="admin-products">
-    <h3>产品库管理</h3>
+    <div class="page-header">
+      <h3>产品库管理</h3>
+      <p class="page-sub">维护产品基础信息、二维码、生产日期等</p>
+    </div>
 
     <!-- 顶部 toolbar：搜索 + 状态过滤 + 操作 -->
     <div class="toolbar">
@@ -780,62 +783,75 @@ export default {
 </script>
 
 <style scoped>
+.admin-products {
+  max-width: 1400px;
+}
+.page-header {
+  margin-bottom: var(--space-5);
+}
 .admin-products h3 {
-  margin: 0 0 16px 0;
-  color: #1f2937;
-  font-size: 20px;
-  font-weight: 600;
+  margin: 0 0 var(--space-1);
+  color: var(--color-text);
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+}
+.page-sub {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
 }
 
 /* ===== Toolbar ===== */
 .toolbar {
-  background: white;
-  border-radius: 8px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+  box-shadow: var(--shadow-card);
 }
 .toolbar-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   flex-wrap: wrap;
 }
 .toolbar-top {
-  margin-bottom: 10px;
+  margin-bottom: var(--space-3);
 }
 .toolbar-bottom {
-  border-top: 1px solid #f0f0f0;
-  padding-top: 10px;
+  border-top: 1px solid var(--color-divider);
+  padding-top: var(--space-3);
 }
 .search-box {
   flex: 0 0 320px;
 }
 .status-filter {
   display: flex;
-  gap: 6px;
+  gap: var(--space-1);
 }
 .filter-chip {
-  padding: 6px 14px;
-  border-radius: 16px;
-  background: #f4f4f5;
-  color: #606266;
-  font-size: 13px;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-muted);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
   cursor: pointer;
   user-select: none;
-  transition: all 0.15s;
+  transition: all var(--transition-base);
+  border: 1px solid transparent;
 }
 .filter-chip:hover {
-  background: #e9e9eb;
+  background: var(--color-border-light);
 }
 .filter-chip.active {
-  background: #1989fa;
+  background: var(--color-primary);
   color: white;
+  border-color: var(--color-primary);
 }
 .format-help {
   margin-left: auto;
-  font-size: 12px;
-  color: #1989fa;
+  font-size: var(--text-sm);
+  color: var(--color-primary);
   cursor: pointer;
   text-decoration: none;
 }
@@ -923,48 +939,51 @@ export default {
 
 /* ===== Table ===== */
 .table-wrap {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
   overflow-x: auto;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
 .product-table {
   width: 100%;
   min-width: 1800px;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 .product-table th,
 .product-table td {
   padding: 10px 12px;
   text-align: left;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--color-divider);
   white-space: nowrap;
   vertical-align: middle;
 }
 .product-table thead {
-  background: #fafbfc;
+  background: var(--color-bg-muted);
 }
 .product-table th {
-  font-weight: 600;
-  color: #374151;
-  font-size: 12px;
+  font-weight: var(--font-semibold);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
   letter-spacing: 0.3px;
   position: sticky;
   top: 0;
-  background: #fafbfc;
+  background: var(--color-bg-muted);
   z-index: 1;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid var(--color-border);
+}
+.product-table tbody tr {
+  transition: background var(--transition-fast);
 }
 .product-table tbody tr:hover {
-  background: #f5f7fa;
+  background: var(--brand-50);
 }
 .product-table tbody tr.selected {
-  background: #ecf5ff;
+  background: var(--brand-50);
 }
 .product-table tbody tr.selected:hover {
-  background: #d9ecff;
+  background: var(--brand-100);
 }
 
 .col-check {

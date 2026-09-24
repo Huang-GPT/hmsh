@@ -1,6 +1,9 @@
 <template>
   <div class="admin-bindings">
-    <h3>绑定记录总览</h3>
+    <div class="page-header">
+      <h3>绑定记录总览</h3>
+      <p class="page-sub">查看所有用户与产品的绑定关系</p>
+    </div>
 
     <div class="toolbar">
       <div class="toolbar-row">
@@ -197,25 +200,31 @@ export default {
 </script>
 
 <style scoped>
-.admin-bindings {
-  background: #fff;
-  padding: 20px;
-  border-radius: 8px;
-  min-height: calc(100vh - 88px);
+.admin-bindings { max-width: 1400px; }
+.page-header { margin-bottom: var(--space-5); }
+.admin-bindings h3 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  color: var(--color-text);
 }
-h3 {
-  margin: 0 0 16px;
-  font-size: 18px;
-  color: #1f2937;
+.page-sub {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
 }
 .toolbar {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-4);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-card);
 }
 .toolbar-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
   flex-wrap: wrap;
 }
 .toolbar-row.toolbar-bottom {

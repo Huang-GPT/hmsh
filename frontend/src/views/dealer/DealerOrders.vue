@@ -1,18 +1,43 @@
 <template>
   <div class='dealer-orders'>
     <van-nav-bar title='工单服务' left-arrow @click-left="$router.push('/admin/dashboard')" fixed />
-    <van-tabs v-model='activeTab' @change='loadOrders' sticky>
+    <van-tabs v-model='activeTab' @change='loadOrders' sticky offset-top="46px">
       <van-tab title='待接单' name='dispatched' />
       <van-tab title='处理中' name='processing' />
       <van-tab title='已完成' name='completed' />
     </van-tabs>
     <van-list v-model='loading' :finished='finished' finished-text='没有更多了' @load='loadOrders'>
-      <van-cell v-for='o in orders' :key='o.id' :title='o.order_no' :label="(o.product_name || o.product_model || '')" @click='onCellClick(o)'>
-        <template #icon><van-tag :type='tagType(o.status)' size='small'>{{statusMap[o.status]}}</van-tag></template>
-        <template #right-icon><span v-if='o.assigned_engineer_name' class='eng-name'>{{o.assigned_engineer_name}}</span></template>
-      </van-cell>
+      <div v-if='orders.length === 0 && !loading' class='empty-tip'>
+        <van-empty :description='emptyText' />
+      </div>
+      <div
+        v-for='o in orders'
+        :key='o.id'
+        class='order-card'
+        @click='onCellClick(o)'
+      >
+        <div class='card-row-top'>
+          <span class='order-no'>{{ o.order_no }}</span>
+          <van-tag :type='tagType(o.status)' size='medium'>{{statusMap[o.status]}}</van-tag>
+        </div>
+        <div class='card-row'>
+          <span class='ilbl'>客户：</span>
+          <span class='ival'>{{ o.contact_name || '—' }} {{ o.contact_phone || '' }}</span>
+        </div>
+        <div class='card-row'>
+          <span class='ilbl'>产品：</span>
+          <span class='ival'>{{ o.product_name || o.product_model || '—' }}</span>
+        </div>
+        <div class='card-row'>
+          <span class='ilbl'>故障：</span>
+          <span class='ival ellipsis'>{{ o.fault_type || '—' }}</span>
+        </div>
+        <div v-if='o.assigned_engineer_name' class='card-row card-row-meta'>
+          <van-icon name='manager-o' />
+          <span>{{ o.assigned_engineer_name }}</span>
+        </div>
+      </div>
     </van-list>
-    <van-empty v-if='!loading && orders.length === 0' :description='emptyText' />
 
     <van-dialog v-model='showAcceptDialog' title='接单' show-cancel-button :before-close='onAcceptClose'>
       <div class='accept-dialog'>
@@ -98,39 +123,128 @@ export default {
       if (!phone || phone.length < 7) { this.$toast('请填写正确的工程师电话'); return }
       try {
         await acceptOrderByText(this.currentOrder.id, name, phone)
-        this.$toast.success('接单成功，工单已进入处理中')
+        this.$toast.success('接单成功')
         this.showAcceptDialog = false
-        this.activeTab = 'processing'
-        this.finished = false
         this.loadOrders()
       } catch (e) {
-        const err = (e && e.response && e.response.data && e.response.data.error) || '接单失败'
-        this.$toast(err)
+        this.$toast((e && e.response && e.response.data && e.response.data.error) || '接单失败')
       }
     },
     async confirmComplete() {
       try {
-        await confirmCompletedApi(this.currentOrder.id, '经销商确认完成')
+        await confirmCompletedApi(this.currentOrder.id, '')
         this.$toast.success('已标记完成')
         this.showDetailDialog = false
-        this.finished = false
         this.loadOrders()
       } catch (e) {
-        const err = (e && e.response && e.response.data && e.response.data.error) || '操作失败'
-        this.$toast(err)
+        this.$toast((e && e.response && e.response.data && e.response.data.error) || '操作失败')
       }
-    }
-  }
+    },
+  },
 }
 </script>
 <style scoped>
-.dealer-orders { background: #f5f5f5; min-height: 100vh; padding-bottom: 60px; }
-.accept-dialog { padding: 16px; }
-.accept-dialog .hint { font-size: 13px; color: #969799; margin-bottom: 12px; text-align: center; }
-.detail-dialog { padding: 12px 16px; }
-.detail-dialog .row { display: flex; padding: 8px 0; border-bottom: 1px solid #f2f2f2; font-size: 14px; }
-.detail-dialog .row .k { width: 80px; color: #969799; flex-shrink: 0; }
-.detail-dialog .row .v { flex: 1; color: #323233; word-break: break-all; }
-.action-btns { margin: 16px 0 8px; }
-.eng-name { font-size: 12px; color: #1989fa; }
+.dealer-orders {
+  min-height: 100vh;
+  background: var(--color-bg-page);
+  padding-top: var(--nav-bar-height);
+}
+
+/* ===== 列表卡片 ===== */
+.order-card {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  margin: var(--space-3) var(--space-4);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+.order-card:active {
+  transform: scale(0.99);
+  box-shadow: var(--shadow-hover);
+}
+.card-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+.order-no {
+  font-family: ui-monospace, monospace;
+  font-weight: var(--font-semibold);
+  font-size: var(--text-md);
+  color: var(--color-text);
+}
+.card-row {
+  display: flex;
+  align-items: center;
+  font-size: var(--text-base);
+  color: var(--color-text);
+  margin-top: var(--space-1);
+  line-height: 1.5;
+}
+.card-row-meta {
+  font-size: var(--text-sm);
+  color: var(--color-primary);
+  margin-top: var(--space-2);
+}
+.card-row-meta .van-icon {
+  margin-right: var(--space-1);
+}
+.ilbl {
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+  margin-right: var(--space-1);
+}
+.ival {
+  color: var(--color-text);
+}
+.ival.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ===== Empty ===== */
+.empty-tip {
+  padding: var(--space-10) 0;
+}
+
+/* ===== Dialogs ===== */
+.accept-dialog {
+  padding: var(--space-3) var(--space-4);
+}
+.accept-dialog .hint {
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+  margin-bottom: var(--space-3);
+}
+.detail-dialog {
+  padding: var(--space-4);
+  font-size: var(--text-base);
+}
+.detail-dialog .row {
+  display: flex;
+  padding: var(--space-2) 0;
+  border-bottom: 1px dashed var(--color-divider);
+}
+.detail-dialog .row:last-child {
+  border-bottom: none;
+}
+.detail-dialog .k {
+  width: 80px;
+  flex-shrink: 0;
+  color: var(--color-text-tertiary);
+}
+.detail-dialog .v {
+  flex: 1;
+  color: var(--color-text);
+  word-break: break-all;
+}
+.action-btns {
+  margin-top: var(--space-4);
+}
 </style>

@@ -1,6 +1,9 @@
 <template>
   <div class="admin-faults">
-    <h3>故障库管理</h3>
+    <div class="page-header">
+      <h3>故障库管理</h3>
+      <p class="page-sub">维护故障分类与对应常见故障案例</p>
+    </div>
 
     <!-- Tabs -->
     <van-tabs v-model:active="tab" sticky offset-top="0" @click-tab="onTabChange">
@@ -466,22 +469,25 @@ export default {
 </script>
 
 <style scoped>
-.admin-faults {
-  background: #fff;
-  border-radius: 8px;
-  padding: 20px;
-  min-height: calc(100vh - 88px);
+.admin-faults { max-width: 1400px; }
+.page-header { margin-bottom: var(--space-5); }
+.admin-faults h3 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  color: var(--color-text);
 }
-h3 {
-  margin: 0 0 16px;
-  font-size: 18px;
-  color: #1f2937;
+.page-sub {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
 }
 .toolbar {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
-  padding: 8px 0;
+  padding: var(--space-2) 0;
+  margin-bottom: var(--space-4);
 }
 .toolbar .van-search {
   flex: 1;
@@ -491,10 +497,10 @@ h3 {
 }
 .cat-list,
 .fault-list {
-  margin-top: 8px;
-  border-radius: 8px;
+  margin-top: var(--space-2);
+  border-radius: var(--radius-md);
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  box-shadow: var(--shadow-card);
 }
 .cat-icon {
   font-size: 22px;

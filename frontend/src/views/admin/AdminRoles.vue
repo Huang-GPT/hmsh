@@ -1,7 +1,9 @@
 <template>
   <div class="admin-roles">
-    <h3>角色管理</h3>
-    <p class="page-sub">管理角色与权限分配（基于 RBAC 行业标准设计）</p>
+    <div class="page-header">
+      <h3>角色管理</h3>
+      <p class="page-sub">管理角色与权限分配（基于 RBAC 行业标准设计）</p>
+    </div>
 
     <div class="toolbar">
       <div class="toolbar-row toolbar-top">
@@ -320,22 +322,47 @@ export default {
 </script>
 
 <style scoped>
-.admin-roles h3 { margin: 0 0 8px; color: #1f2937; font-size: 18px; }
-.page-sub { font-size: 13px; color: #6b7280; margin: 0 0 16px; }
-.toolbar { margin-bottom: 12px; }
-.toolbar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.admin-roles { max-width: 1400px; }
+.page-header { margin-bottom: var(--space-5); }
+.admin-roles h3 {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text);
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+}
+.page-sub {
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+  margin: 0;
+}
+.toolbar {
+  margin-bottom: var(--space-4);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-card);
+}
+.toolbar-row { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); flex-wrap: wrap; }
+.toolbar-row:last-child { margin-bottom: 0; }
 .search-box { flex: 1; min-width: 280px; }
 
-.table-wrap { overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 6px; }
-.role-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.role-table th { background: #f9fafb; padding: 10px 8px; text-align: left; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb; }
-.role-table td { padding: 10px 8px; border-bottom: 1px solid #f3f4f6; color: #4b5563; vertical-align: middle; }
-.role-table tbody tr:hover td { background: #f9fafb; }
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-card);
+  box-shadow: var(--shadow-card);
+}
+.role-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.role-table th { background: var(--color-bg-muted); padding: 12px var(--space-2); text-align: left; font-weight: var(--font-semibold); color: var(--color-text-secondary); border-bottom: 1px solid var(--color-border); }
+.role-table td { padding: 12px var(--space-2); border-bottom: 1px solid var(--color-divider); color: var(--color-text-secondary); vertical-align: middle; }
+.role-table tbody tr { transition: background var(--transition-fast); }
+.role-table tbody tr:hover td { background: var(--brand-50); }
 .role-table tbody tr.row-disabled td { opacity: 0.6; }
-.code-tag { background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-family: ui-monospace, monospace; font-size: 12px; color: #1f2937; }
-.role-name { font-weight: 500; color: #1f2937; }
-.desc { color: #6b7280; font-size: 12px; }
-.link { color: #1989fa; cursor: pointer; }
+.code-tag { background: var(--color-bg-muted); padding: 2px 6px; border-radius: var(--radius-xs); font-family: ui-monospace, monospace; font-size: var(--text-sm); color: var(--color-text); }
+.role-name { font-weight: var(--font-medium); color: var(--color-text); }
+.desc { color: var(--color-text-tertiary); font-size: var(--text-sm); }
+.link { color: var(--color-primary); cursor: pointer; }
 .link:hover { text-decoration: underline; }
 .col-time { font-family: ui-monospace, monospace; font-size: 12px; }
 .state-cell { text-align: center; padding: 40px; color: #9ca3af; }

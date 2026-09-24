@@ -508,168 +508,178 @@ export default {
 <style scoped>
 .product-repair {
   min-height: 100vh;
-  background: #f5f6f8;
+  background: var(--color-bg-page);
   padding-bottom: 80px;
 }
 .repair-spacer {
-  height: 46px;
+  height: var(--nav-bar-height);
 }
+
+/* ===== 步骤条 ===== */
 .step-bar {
-  background: #fff;
-  padding: 16px 12px 8px;
-  margin-bottom: 12px;
+  background: var(--color-bg-card);
+  padding: var(--space-4) var(--space-3) var(--space-2);
+  margin-bottom: var(--space-3);
 }
+
+/* ===== 已选产品摘要卡 ===== */
 .summary-card {
-  background: #fff;
-  border-left: 3px solid #1989fa;
-  padding: 10px 16px;
-  margin: 0 16px 12px;
-  border-radius: 4px;
-  font-size: 13px;
-  color: #4b5563;
+  background: var(--color-bg-card);
+  border-left: 3px solid var(--color-primary);
+  padding: var(--space-3) var(--space-4);
+  margin: 0 var(--space-4) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  box-shadow: var(--shadow-card);
 }
 .summary-product,
 .summary-fault {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
 }
 .p-label {
-  color: #9ca3af;
+  color: var(--color-text-tertiary);
   margin-right: 2px;
 }
 .p-name {
-  color: #1f2937;
-  font-weight: 600;
+  color: var(--color-text);
+  font-weight: var(--font-semibold);
 }
 .p-qr {
-  margin-left: 4px;
+  margin-left: var(--space-1);
 }
 .f-cat {
-  color: #1989fa;
+  color: var(--color-primary);
 }
 .f-type {
-  color: #6b7280;
+  color: var(--color-text-tertiary);
 }
 
+/* ===== 步骤内容 ===== */
 .step-content {
-  padding: 0 16px 16px;
+  padding: 0 var(--space-4) var(--space-4);
 }
 
 .loading-tip,
 .empty-tip,
 .hint-tip {
   text-align: center;
-  padding: 30px 0;
-  color: #9ca3af;
-  font-size: 13px;
+  padding: 40px 0;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-sm);
 }
 
-/* === Step 1 产品卡片 === */
+/* ===== Step 1 产品卡片 ===== */
 .product-cards {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-3);
 }
 .product-card {
-  background: #fff;
-  border-radius: 8px;
-  padding: 14px;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   cursor: pointer;
   border: 2px solid transparent;
-  transition: all 0.2s;
+  transition: all var(--transition-base);
+  box-shadow: var(--shadow-card);
 }
 .product-card:active {
-  background: #f3f4f6;
+  transform: scale(0.99);
 }
 .product-card.selected {
-  border-color: #1989fa;
-  background: #ecf5ff;
+  border-color: var(--color-primary);
+  background: var(--brand-50);
 }
 .pc-icon {
   font-size: 32px;
   width: 48px;
   height: 48px;
-  background: #f3f4f6;
+  background: var(--color-bg-muted);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 .pc-info {
   flex: 1;
   min-width: 0;
 }
 .pc-name {
-  font-weight: 600;
-  color: #1f2937;
-  font-size: 15px;
-  margin-bottom: 4px;
+  font-weight: var(--font-semibold);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  margin-bottom: var(--space-1);
 }
 .pc-meta {
-  font-size: 12px;
-  color: #6b7280;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .pc-meta-item {
-  font-size: 12px;
-  color: #9ca3af;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
 }
 .pc-date {
   margin-top: 2px;
 }
 .pc-check {
-  color: #1989fa;
+  color: var(--color-primary);
   font-size: 22px;
+  flex-shrink: 0;
 }
 
-/* === Step 2 故障分类 === */
+/* ===== Step 2 故障分类 ===== */
 .cat-section {
-  background: #fff;
-  border-radius: 8px;
-  padding: 14px 12px;
-  margin-bottom: 12px;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-3);
+  margin-bottom: var(--space-3);
+  box-shadow: var(--shadow-card);
 }
 .section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 12px;
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-3);
 }
 .cat-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
+  gap: var(--space-2);
 }
 .cat-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 10px 6px;
-  border-radius: 8px;
-  background: #f9fafb;
+  padding: var(--space-3) var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-muted);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-base);
 }
 .cat-item:active {
-  background: #f3f4f6;
+  background: var(--color-border-light);
 }
 .cat-item.active {
-  background: #ecf5ff;
-  border: 1px solid #1989fa;
+  background: var(--brand-50);
+  border: 1px solid var(--color-primary);
 }
 .cat-icon {
   font-size: 28px;
-  margin-bottom: 4px;
+  margin-bottom: var(--space-1);
 }
 .cat-name {
-  font-size: 12px;
-  color: #4b5563;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
   text-align: center;
   line-height: 1.3;
 }
@@ -677,40 +687,41 @@ export default {
 .fault-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .fault-item {
-  background: #f9fafb;
-  border-radius: 6px;
-  padding: 10px 12px;
+  background: var(--color-bg-muted);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
   cursor: pointer;
   border: 1px solid transparent;
+  transition: all var(--transition-base);
 }
 .fault-item.active {
-  background: #ecf5ff;
-  border-color: #1989fa;
+  background: var(--brand-50);
+  border-color: var(--color-primary);
 }
 .f-title {
-  font-weight: 600;
-  font-size: 13px;
-  color: #1f2937;
+  font-weight: var(--font-semibold);
+  font-size: var(--text-sm);
+  color: var(--color-text);
 }
 .f-desc {
-  font-size: 12px;
-  color: #6b7280;
-  margin-top: 4px;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+  margin-top: var(--space-1);
   line-height: 1.5;
 }
 .fault-type-input {
-  margin-top: 12px;
+  margin-top: var(--space-3);
 }
 
-/* === Step 3 信息表单 === */
+/* ===== Step 3 信息表单 ===== */
 .block-group {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
 .uploader-wrap {
-  padding: 12px;
+  padding: var(--space-3);
 }
 .upload-btn {
   display: flex;
@@ -719,54 +730,52 @@ export default {
   justify-content: center;
   width: 80px;
   height: 80px;
-  background: #f9fafb;
-  border-radius: 6px;
-  color: #6b7280;
-  font-size: 12px;
-  gap: 4px;
-}
-.placeholder {
-  color: #c0c4cc;
+  background: var(--color-bg-muted);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-tertiary);
+  font-size: var(--text-sm);
+  gap: var(--space-1);
 }
 
-/* === Step 4 确认卡片 === */
+/* ===== Step 4 确认卡片 ===== */
 .confirm-card {
-  background: #fff;
-  border-radius: 8px;
-  margin-bottom: 12px;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
   overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
 .confirm-header {
-  background: linear-gradient(135deg, #4a90e2, #1989fa);
+  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
   color: #fff;
-  padding: 14px 16px;
-  font-weight: 600;
+  padding: var(--space-3) var(--space-4);
+  font-weight: var(--font-semibold);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .check-icon {
   font-size: 20px;
   color: #fff;
 }
 .val-main {
-  font-weight: 600;
-  color: #1f2937;
+  font-weight: var(--font-semibold);
+  color: var(--color-text);
 }
 .multi-line {
   white-space: pre-wrap;
-  color: #4b5563;
+  color: var(--color-text-secondary);
   line-height: 1.6;
   max-width: 220px;
 }
 .confirm-warning {
   background: #fffbe6;
   color: #ad6800;
-  padding: 12px 16px;
-  font-size: 12px;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
   display: flex;
   align-items: flex-start;
-  gap: 6px;
+  gap: var(--space-1);
   border-top: 1px solid #fde68a;
 }
 .confirm-warning .van-icon {
@@ -774,14 +783,14 @@ export default {
   margin-top: 1px;
 }
 
-/* === 期望服务时间日期选择（与后台 AdminProducts 一致） === */
+/* ===== 期望服务时间日期选择 ===== */
 .date-input {
   border: none;
   outline: none;
   background: transparent;
   text-align: right;
-  font-size: 14px;
-  color: #1f2937;
+  font-size: var(--text-base);
+  color: var(--color-text);
   width: 60%;
   font-family: inherit;
 }
@@ -790,20 +799,20 @@ export default {
   opacity: 0.6;
 }
 .date-input::placeholder {
-  color: #c8c9cc;
+  color: var(--color-text-placeholder);
 }
 
-/* === 底部按钮 === */
+/* ===== 底部按钮 ===== */
 .bottom-bar {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  background: #fff;
-  padding: 12px 16px;
+  background: var(--color-bg-card);
+  padding: var(--space-3) var(--space-4);
   display: flex;
-  gap: 12px;
-  box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
+  gap: var(--space-3);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
   z-index: 100;
 }
 .bottom-btn {
