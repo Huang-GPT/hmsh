@@ -5,7 +5,7 @@
       <p class="page-sub">上传与管理常见故障的 PDF 文档、图片与 Office 文档（移动端自动展示）</p>
     </div>
 
-    <!-- 工具栏：搜索 + 类型筛选 + 操作 -->
+    <!-- 工具栏：搜索 + 上传 + 类型筛选 -->
     <div class="toolbar">
       <div class="toolbar-row">
         <van-search
@@ -17,6 +17,15 @@
           background="transparent"
         />
         <van-button size="small" plain icon="replay" @click="loadFiles()">刷新</van-button>
+        <van-button
+          size="small"
+          type="primary"
+          icon="plus"
+          :loading="uploading"
+          @click="openUploadPicker"
+        >
+          上传文件
+        </van-button>
       </div>
       <div class="toolbar-row toolbar-filters">
         <span
@@ -27,6 +36,7 @@
         >
           {{ f.label }} <span class="chip-count">({{ typeCounts[f.value] || 0 }})</span>
         </span>
+        <span class="total-tip">共 {{ total }} 个文件</span>
       </div>
     </div>
 
@@ -54,7 +64,7 @@
               <div class="empty-cell">
                 <div class="empty-icon">📁</div>
                 <div class="empty-text">暂无文件</div>
-                <div class="empty-hint">点击下方"上传文件"按钮开始</div>
+                <div class="empty-hint">点击右上角「上传文件」按钮开始</div>
               </div>
             </td>
           </tr>
@@ -95,20 +105,6 @@
       style="display: none"
       @change="onFilesSelected"
     />
-
-    <!-- 底部悬浮操作条 -->
-    <div class="bottom-bar">
-      <span class="stat-tip">共 {{ total }} 个文件</span>
-      <van-button
-        type="primary"
-        size="small"
-        icon="plus"
-        :loading="uploading"
-        @click="openUploadPicker"
-      >
-        上传文件
-      </van-button>
-    </div>
 
     <!-- 描述编辑弹窗 -->
     <van-dialog
@@ -425,6 +421,12 @@ export default {
   font-size: var(--text-xs);
   opacity: 0.85;
 }
+.total-tip {
+  margin-left: auto;
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+}
 
 /* ===== Table ===== */
 .table-wrap {
@@ -550,25 +552,6 @@ export default {
 .op-link:hover { text-decoration: underline; }
 .op-link.primary { color: var(--color-primary); }
 .op-link.danger { color: var(--color-danger); }
-
-/* ===== Bottom bar ===== */
-.bottom-bar {
-  position: fixed;
-  bottom: var(--space-4);
-  right: var(--space-4);
-  display: flex;
-  gap: var(--space-3);
-  align-items: center;
-  background: var(--color-bg-card);
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-full);
-  box-shadow: var(--shadow-md);
-  z-index: 10;
-}
-.stat-tip {
-  font-size: var(--text-sm);
-  color: var(--color-text-tertiary);
-}
 
 /* ===== Dialog ===== */
 .dialog-body {
