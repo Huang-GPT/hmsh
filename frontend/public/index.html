@@ -5,6 +5,13 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>红门售后服务</title>
+  <!--
+    构建版本标记：每次构建自动注入当前时间戳。
+    用途：用户报障时，浏览器控制台执行 window.__BUILD__ 即可确认
+          当前跑的是不是最新版本（不用再猜缓存）。
+    注入方式见 vue.config.js 的 chainWebpack（templateParameters）。
+  -->
+  <script>window.__BUILD__="<%= BUILD_TIME %>"</script>
 </head>
 <body>
   <noscript>
