@@ -354,7 +354,7 @@
     </van-popup>
 
     <!-- ============ 接单弹窗 ============ -->
-    <van-dialog v-model:show="showAccept" title="总部代接单" show-cancel-button @confirm="submitAdminAccept">
+    <van-dialog v-model:show="showAccept" title="总部代接单" show-cancel-button :before-close="bcAccept" @confirm="submitAdminAccept">
       <div class="dialog-body">
         <div class="dialog-tip">填写本次上门工程师的姓名和手机号（11位）</div>
         <van-field v-model="engineerForm.name" label="工程师姓名" placeholder="请输入" maxlength="20" />
@@ -370,6 +370,7 @@
 import {
   getAllDealerOrders, getServicePoints, acceptOrderByText, getOrderDetail,
 } from '@/api/admin'
+import { makeBeforeClose } from '@/utils/dialog'
 
 export default {
   name: 'AdminDealerOrders',
@@ -414,6 +415,9 @@ export default {
         pending_accept: '待受理',
         pending_dispatch: '待派单',
       },
+
+      // Vant2 before-close 处理器（由 created 注入实现）
+      bcAccept: null,
     }
   },
   watch: {
@@ -422,6 +426,8 @@ export default {
     },
   },
   async created() {
+    // 绑定 Vant2 before-close（提交失败保持弹窗打开）
+    this.bcAccept = makeBeforeClose(this.submitAdminAccept)
     this.loadCurrentUser()
     try {
       const spRes = await getServicePoints()
@@ -530,17 +536,20 @@ export default {
     async submitAdminAccept() {
       const name = (this.engineerForm.name || '').trim()
       const phone = (this.engineerForm.phone || '').trim()
-      if (!name) { this.$toast('请填写工程师姓名'); return }
-      if (!/^1\d{10}$/.test(phone)) { this.$toast('请填写正确的 11 位手机号'); return }
+      // 返回 false = 失败，before-close 保持弹窗打开
+      if (!name) { this.$toast('请填写工程师姓名'); return false }
+      if (!/^1\d{10}$/.test(phone)) { this.$toast('请填写正确的 11 位手机号'); return false }
       try {
         await acceptOrderByText(this.currentOrder.id, name, phone)
         this.$toast.success('已代为接单，工单进入处理中')
         this.showAccept = false
         this.showDetail = false
         this.loadOrders()
+        return true
       } catch (e) {
         const err = (e && e.response && e.response.data && e.response.data.error) || '操作失败'
         this.$toast(err)
+        return false
       }
     },
     previewMedia(url) {

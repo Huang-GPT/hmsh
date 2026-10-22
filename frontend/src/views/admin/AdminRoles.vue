@@ -78,7 +78,7 @@
     </div>
 
     <!-- ============ 新增/编辑角色 ============ -->
-    <van-dialog v-model:show="showForm" :title="formMode === 'create' ? '新增角色' : '编辑角色 ' + form.name" show-cancel-button @confirm="submitForm" width="92%">
+    <van-dialog v-model:show="showForm" :title="formMode === 'create' ? '新增角色' : '编辑角色 ' + form.name" show-cancel-button :before-close="bcForm" @confirm="submitForm" width="92%">
       <div class="dialog-body dialog-body-large">
         <van-cell-group inset>
           <van-field v-model="form.code" label="编码" placeholder="英文唯一编码，如 operator" :disabled="formMode === 'edit'" required maxlength="32" />
@@ -171,6 +171,7 @@
 import {
   listPermissions, listRoles, getRole, createRole, updateRole, deleteRole,
 } from '@/api/admin'
+import { makeBeforeClose } from '@/utils/dialog'
 
 export default {
   name: 'AdminRoles',
@@ -191,6 +192,9 @@ export default {
       showRolePermsDialog: false,
       currentRole: null,
       currentRolePerms: [],
+
+      // Vant2 before-close 处理器（由 created 注入实现）
+      bcForm: null,
     }
   },
   computed: {
@@ -205,6 +209,8 @@ export default {
     },
   },
   async created() {
+    // 绑定 Vant2 before-close（提交失败保持弹窗打开）
+    this.bcForm = makeBeforeClose(this.submitForm)
     await Promise.all([this.loadRoles(), this.loadPermissions()])
   },
   methods: {
@@ -253,7 +259,8 @@ export default {
       this.showForm = true
     },
     async submitForm() {
-      if (!this.form.code || !this.form.name) { this.$toast('编码和名称必填'); return }
+      // 返回 false = 失败，before-close 保持弹窗打开
+      if (!this.form.code || !this.form.name) { this.$toast('编码和名称必填'); return false }
       const payload = { ...this.form, permission_ids: this.selectedPermIds }
       try {
         if (this.formMode === 'create') {
@@ -265,9 +272,11 @@ export default {
         }
         this.showForm = false
         this.loadRoles()
+        return true
       } catch (e) {
         const err = (e && e.response && e.response.data && e.response.data.error) || '操作失败'
         this.$toast(err)
+        return false
       }
     },
     async doDelete(r) {

@@ -117,7 +117,7 @@
     </div>
 
     <!-- ============ 新增/编辑用户 ============ -->
-    <van-dialog v-model:show="showForm" :title="formMode === 'create' ? '新增用户' : '编辑用户'" show-cancel-button @confirm="submitForm" width="90%">
+    <van-dialog v-model:show="showForm" :title="formMode === 'create' ? '新增用户' : '编辑用户'" show-cancel-button :before-close="bcForm" @confirm="submitForm" width="90%">
       <div class="dialog-body">
         <van-cell-group inset>
           <van-field v-model="form.account" label="账号" placeholder="登录账号（不可重复）" :disabled="formMode === 'edit'" required maxlength="32" />
@@ -148,7 +148,7 @@
     </van-dialog>
 
     <!-- ============ 分配角色弹窗 ============ -->
-    <van-dialog v-model:show="showAssign" title="分配角色" show-cancel-button @confirm="submitAssign" width="85%">
+    <van-dialog v-model:show="showAssign" title="分配角色" show-cancel-button :before-close="bcAssign" @confirm="submitAssign" width="85%">
       <div class="dialog-body">
         <div class="dialog-tip">为「{{ currentUser && (currentUser.real_name || currentUser.nickname || currentUser.account) }}」分配角色（可多选）</div>
         <div class="role-checkboxes">
@@ -163,7 +163,7 @@
     </van-dialog>
 
     <!-- ============ 删除确认弹窗 ============ -->
-    <van-dialog v-model:show="showDeleteConfirm" title="删除用户" show-cancel-button @confirm="submitDelete">
+    <van-dialog v-model:show="showDeleteConfirm" title="删除用户" show-cancel-button :before-close="bcDelete" @confirm="submitDelete">
       <div class="dialog-body">
         <div class="dialog-tip">确定删除用户 <strong>{{ currentUser && (currentUser.real_name || currentUser.nickname || currentUser.account) }}</strong>？</div>
         <div class="dialog-warn">⚠️ 此操作不可恢复，将同时解除该用户的所有角色绑定。</div>
@@ -171,7 +171,7 @@
     </van-dialog>
 
     <!-- ============ 重置密码弹窗 ============ -->
-    <van-dialog v-model:show="showResetPwd" title="重置密码" show-cancel-button @confirm="submitResetPwd">
+    <van-dialog v-model:show="showResetPwd" title="重置密码" show-cancel-button :before-close="bcResetPwd" @confirm="submitResetPwd">
       <div class="dialog-body">
         <div class="dialog-tip">为「{{ currentUser && (currentUser.real_name || currentUser.nickname || currentUser.account) }}」重置密码</div>
         <van-cell-group inset>
@@ -187,6 +187,7 @@ import {
   getAllUsers, createUser, updateUser, toggleUserStatus, resetPassword, deleteUser,
   listRoles, getUserRoles, setUserRoles, getServicePoints,
 } from '@/api/admin'
+import { makeBeforeClose } from '@/utils/dialog'
 
 export default {
   name: 'AdminUsers',
@@ -226,6 +227,12 @@ export default {
       resetPwdForm: { new_password: '' },
 
       showDeleteConfirm: false,
+
+      // Vant2 before-close 处理器（由 created 注入实现，见 utils/dialog.js）
+      bcForm: null,
+      bcAssign: null,
+      bcDelete: null,
+      bcResetPwd: null,
     }
   },
   computed: {
@@ -259,6 +266,11 @@ export default {
     statusFilter() { this.page = 1 },
   },
   async created() {
+    // 绑定 Vant2 before-close（失败时保持弹窗打开，用户填的内容不丢）
+    this.bcForm = makeBeforeClose(this.submitForm)
+    this.bcAssign = makeBeforeClose(this.submitAssign)
+    this.bcDelete = makeBeforeClose(this.submitDelete)
+    this.bcResetPwd = makeBeforeClose(this.submitResetPwd)
     await Promise.all([this.loadUsers(), this.loadRoles(), this.loadServicePoints()])
   },
   methods: {
@@ -318,8 +330,9 @@ export default {
     },
     async submitForm() {
       const f = this.form
-      if (!f.account) { this.$toast('请填写账号'); return }
-      if (this.formMode === 'create' && !f.real_name && !f.nickname) { this.$toast('请填写姓名或昵称'); return }
+      // 返回 false = 提交失败，before-close 会保持弹窗打开（用户填的内容不丢）
+      if (!f.account) { this.$toast('请填写账号'); return false }
+      if (this.formMode === 'create' && !f.real_name && !f.nickname) { this.$toast('请填写姓名或昵称'); return false }
       try {
         const payload = { ...f }
         // 空字符串归一化：避免 phone='' 撞 UNIQUE 索引导致 500
@@ -340,9 +353,11 @@ export default {
         }
         this.showForm = false
         this.loadUsers()
+        return true
       } catch (e) {
         const err = (e && e.response && e.response.data && e.response.data.error) || '操作失败'
         this.$toast(err)
+        return false
       }
     },
     async openAssignRoles(u) {
@@ -359,9 +374,11 @@ export default {
         this.$toast.success('角色分配成功')
         this.showAssign = false
         this.loadUsers()
+        return true
       } catch (e) {
         const err = (e && e.response && e.response.data && e.response.data.error) || '操作失败'
         this.$toast(err)
+        return false
       }
     },
     doResetPwd(u) {
@@ -375,8 +392,10 @@ export default {
         await resetPassword(this.currentUser.id, pwd)
         this.$toast.success('密码已重置为：' + pwd)
         this.showResetPwd = false
+        return true
       } catch (e) {
-        this.$toast('操作失败')
+        this.$toast((e && e.response && e.response.data && e.response.data.error) || '操作失败')
+        return false
       }
     },
     doDelete(u) {
@@ -390,9 +409,11 @@ export default {
         this.showDeleteConfirm = false
         this.currentUser = null
         this.loadUsers()
+        return true
       } catch (e) {
         const err = (e && e.response && e.response.data && e.response.data.error) || '操作失败'
         this.$toast(err)
+        return false
       }
     },
     async doToggle(u) {

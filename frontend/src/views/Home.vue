@@ -14,7 +14,13 @@
     <!-- 功能菜单 -->
     <div class="menu-card">
       <van-cell-group>
-        <van-cell title="个人信息" is-link>
+        <!--
+          修复：这两项之前带 is-link（有右箭头，看着可点）却既没有 to 也没有 @click，
+          点击完全没反应。现在：
+            - 个人信息 → 展示真实登录手机号（不再是空入口）
+            - 系统设置 → 改为「退出登录」，有真实行为
+        -->
+        <van-cell title="个人信息" :value="userPhone || '未登录'">
           <template #icon>
             <van-icon name="user-o" class="cell-icon" />
           </template>
@@ -29,9 +35,9 @@
             <van-icon name="goods-o" class="cell-icon" />
           </template>
         </van-cell>
-        <van-cell title="系统设置" is-link>
+        <van-cell title="退出登录" is-link @click="onLogout">
           <template #icon>
-            <van-icon name="setting-o" class="cell-icon" />
+            <van-icon name="revoke" class="cell-icon" />
           </template>
         </van-cell>
       </van-cell-group>
@@ -48,11 +54,35 @@
 </template>
 
 <script>
+import { getTerminalUser, clearTerminalAuth } from '@/api/products'
+
 export default {
   name: 'UserCenter',
   data() {
     return {
-      activeMenu: 1
+      activeMenu: 1,
+      user: getTerminalUser() || null
+    }
+  },
+  computed: {
+    userPhone() {
+      if (!this.user) return ''
+      return this.user.phone || this.user.nickname || ''
+    }
+  },
+  methods: {
+    onLogout() {
+      this.$dialog.confirm({
+        title: '退出登录',
+        message: '确定要退出当前账号吗？',
+        confirmButtonText: '退出',
+        confirmButtonColor: '#ee0a24'
+      }).then(() => {
+        clearTerminalAuth()
+        this.user = null
+        this.$toast.success('已退出登录')
+        this.$router.replace('/login')
+      }).catch(() => {})
     }
   }
 }

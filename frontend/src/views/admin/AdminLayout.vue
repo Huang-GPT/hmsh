@@ -134,16 +134,27 @@ export default {
     },
     updateActiveMenu() {
       const path = this.$route.path
-      // 当前路径不在可见菜单里（被过滤掉了），高亮保留给工作台
-      if (!this.menuItems.some(i => i.path === path)) {
+      // 修复：/dealer/* 是服务商专用路由，菜单里对应的是「工单售后」(/admin/dealer-orders)。
+      // 之前这里直接拿 path 去匹配 menuItems，'/dealer/orders' 匹配不到 →
+      // 高亮被错误地落到 /admin/dashboard（而服务商通常没有 dashboard:view 权限，
+      // 结果就是侧边栏一个都不高亮，看起来像「点了没反应」）。
+      const alias = {
+        '/dealer/orders': '/admin/dealer-orders'
+      }
+      const target = alias[path] || path
+      if (!this.menuItems.some(i => i.path === target)) {
+        // 当前路径不在可见菜单里（被权限过滤掉了），高亮保留给工作台
         this.activeMenu = '/admin/dashboard'
       } else {
-        this.activeMenu = path
+        this.activeMenu = target
       }
     },
     onMenuClick(item) {
-      this.activeMenu = item.path
-      this.$router.push(item.path)
+      // 修复：之前先设 activeMenu 再 push，若 push 被路由守卫拦下（权限不足/未登录），
+      // 高亮会停在没去成的页面上，与实际路由不一致（表现为「点了菜单但没跳、还高亮错了」）。
+      // 现在完全交给 $route watch 统一更新高亮。
+      // catch 掉重复导航的 NavigationDuplicated，避免控制台 unhandled rejection。
+      this.$router.push(item.path).catch(() => {})
     },
     handleLogout() {
       localStorage.removeItem('admin_user')

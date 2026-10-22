@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { handleAdmin401, makeErrorInterceptor } from '@/utils/auth-interceptor'
 
 const api = axios.create({
   baseURL: '/api',
@@ -23,6 +24,12 @@ uploadApi.interceptors.request.use((config) => {
   return config
 })
 
+// 上传接口同样要处理 401（token 过期时不能静默失败）
+uploadApi.interceptors.response.use(
+  (response) => response,
+  makeErrorInterceptor(() => handleAdmin401()),
+)
+
 // ---- 拦截器：自动带 token + 把后端返回的 Authorization header 落 localStorage ----
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('admin_token')
@@ -43,7 +50,7 @@ api.interceptors.response.use((response) => {
     }
   }
   return response
-})
+}, makeErrorInterceptor(() => handleAdmin401()))
 
 export function adminLogin(account, password) {
   return api.post('/auth/admin/login', { account, password })
@@ -82,6 +89,15 @@ export function completeOrder(orderId, remark) {
   return api.post(`/admin/orders/${orderId}/complete`, { remark })
 }
 
+/**
+ * completeOrder 的别名 —— AdminOrders.vue 用的就是这个名字。
+ * 之前只导出了 completeOrder，AdminOrders.vue import 的是 completeOrderApi，
+ * 运行时得到 undefined → 点「处理完成」抛 TypeError → 界面只显示「操作失败」。
+ */
+export function completeOrderApi(orderId, remark) {
+  return completeOrder(orderId, remark)
+}
+
 export function rejectOrder(orderId, reason) {
   return api.post(`/admin/orders/${orderId}/reject`, { reason })
 }
@@ -106,7 +122,9 @@ export function createUser(data) {
 }
 
 export function updateUserRole(userId, role) {
-  return api.put(`/admin/users/${userId}/role`, { role })
+  // 后端路由是 PUT /admin/users/<user_id>/roles（复数），且 body 用 role_ids
+  // 原写成 `/role`（单数）→ 404
+  return api.put(`/admin/users/${userId}/roles`, { role_ids: role })
 }
 
 // === 用户管理增强 ===
@@ -340,18 +358,33 @@ export function getServicePointOrders() {
 }
 
 export function assignEngineerByText(orderId, engineerName, engineerPhone) {
-  return api.post('/admin/orders/assign-engineer-text', {
+  // 后端路由是 POST /admin/orders/<order_id>/assign-engineer-text
+  // 原写成 '/admin/orders/assign-engineer-text'（漏了 order_id）→ 404
+  return api.post(`/admin/orders/${orderId}/assign-engineer-text`, {
     engineer_name: engineerName,
     engineer_phone: engineerPhone
   })
 }
 
 export function updateRolePermissions(role, permissions) {
-  return api.put('/admin/role-permissions/', { permissions })
+  // 后端路由是 PUT /admin/role-permissions/<role>（role 在路径里）
+  // 原写成 '/admin/role-permissions/' → 404
+  return api.put(`/admin/role-permissions/${role}`, { permissions })
 }
 
 export function updateUserPermissions(userId, permissions) {
-  return api.put('/admin/users/permissions', { permissions })
+  // 后端路由是 PUT /admin/users/<user_id>/permissions（user_id 在路径里）
+  // 原写成 '/admin/users/permissions' → 404
+  return api.put(`/admin/users/${userId}/permissions`, { permissions })
+}
+
+/**
+ * 重置用户密码
+ * 后端：POST /admin/users/<user_id>/reset-password，body { password }
+ * 之前 admin.js 完全没有导出这个函数 → AdminUsers.vue 运行时 undefined → 点「重置密码」抛错
+ */
+export function resetPassword(userId, password) {
+  return api.post(`/admin/users/${userId}/reset-password`, { password })
 }
 
 

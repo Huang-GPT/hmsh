@@ -233,6 +233,7 @@
       v-model="showCreate"
       :title="editingProduct ? '编辑产品记录' : '新建产品记录'"
       show-cancel-button
+      :before-close="bcCreate"
       @confirm="submitCreate"
       @cancel="onCancelCreate"
     >
@@ -363,6 +364,7 @@ import {
   getAllProducts, createProduct, updateProduct, deleteProduct, importProducts,
   getProductBindings, adminUnbind
 } from '@/api/admin'
+import { makeBeforeClose } from '@/utils/dialog'
 
 const emptyForm = () => ({
   sales_no: '', customer_name: '', dealer_name: '',
@@ -403,6 +405,9 @@ export default {
       bindingsProduct: null,
       bindings: [],
       bindingsLoading: false,
+
+      // Vant2 before-close 处理器（由 created 注入实现）
+      bcCreate: null,
     }
   },
   computed: {
@@ -434,6 +439,8 @@ export default {
     },
   },
   created() {
+    // 绑定 Vant2 before-close（提交失败保持弹窗打开）
+    this.bcCreate = makeBeforeClose(this.submitCreate)
     this.loadProducts()
   },
   methods: {
@@ -657,9 +664,10 @@ export default {
       this.editingProduct = null
     },
     async submitCreate() {
+      // 返回 false = 失败，before-close 保持弹窗打开
       if (!this.form.qr_code || !this.form.qr_code.trim()) {
         this.$toast('请填写二维码')
-        return
+        return false
       }
       const isEdit = !!this.editingProduct
       try {
@@ -683,12 +691,14 @@ export default {
         this.showCreate = false
         this.editingProduct = null
         this.loadProducts()
+        return true
       } catch (e) {
         const data = e && e.response && e.response.data
         const err = (data && data.error) || (isEdit ? '更新失败' : '创建失败')
         const detail = (data && data.detail) || ''
         this.$toast(detail ? err + '：' + detail : err)
         console.error(`[admin/products ${isEdit ? 'PUT' : 'POST'}]`, e.response && e.response.data)
+        return false
       }
     },
     async removeProduct(p) {

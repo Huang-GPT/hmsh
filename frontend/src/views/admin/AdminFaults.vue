@@ -111,6 +111,7 @@
       v-model:show="showEditDialog"
       title="编辑描述"
       show-cancel-button
+      :before-close="bcEdit"
       @confirm="saveDescription"
     >
       <div class="dialog-body">
@@ -145,6 +146,7 @@ import {
   deleteFaultFile,
   updateFaultFile,
 } from '@/api/admin'
+import { makeBeforeClose } from '@/utils/dialog'
 
 const TYPE_FILTERS = [
   { value: '', label: '全部' },
@@ -173,6 +175,9 @@ export default {
       showImagePreview: false,
       previewImages: [],
       previewStart: 0,
+
+      // Vant2 before-close 处理器（由 created 注入实现）
+      bcEdit: null,
     }
   },
   computed: {
@@ -189,6 +194,8 @@ export default {
     },
   },
   created() {
+    // 绑定 Vant2 before-close（提交失败保持弹窗打开）
+    this.bcEdit = makeBeforeClose(this.saveDescription)
     this.loadFiles()
   },
   methods: {
@@ -325,7 +332,7 @@ export default {
       this.showEditDialog = true
     },
     async saveDescription() {
-      if (!this.editingFile) return
+      if (!this.editingFile) return false
       try {
         await updateFaultFile(this.editingFile.id, {
           description: this.editingDescription,
@@ -333,8 +340,10 @@ export default {
         this.$toast.success('已保存')
         this.showEditDialog = false
         this.loadFiles()
+        return true
       } catch (e) {
         this.$toast((e && e.response && e.response.data && e.response.data.error) || '保存失败')
+        return false
       }
     },
 

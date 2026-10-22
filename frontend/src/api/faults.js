@@ -1,9 +1,22 @@
 import axios from 'axios'
+import { handleTerminal401 } from '@/utils/auth-interceptor'
 
 const api = axios.create({
   baseURL: '/api',
   timeout: 10000
 })
+
+// 401 → 清终端登录态并跳登录页（避免「点了我的工单/故障库，页面空白无提示」）
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    const status = err && err.response && err.response.status
+    if (status === 401) {
+      try { handleTerminal401() } catch (e) { /* ignore */ }
+    }
+    return Promise.reject(err)
+  },
+)
 
 export function getFaults(productModel, keyword) {
   return api.get('/faults', {

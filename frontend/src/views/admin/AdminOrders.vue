@@ -481,7 +481,7 @@
     </van-dialog>
 
     <!-- ============ 分配服务点 ============ -->
-    <van-dialog v-model:show="showDispatch" title="分配服务点" show-cancel-button @confirm="confirmDispatch">
+    <van-dialog v-model:show="showDispatch" title="分配服务点" show-cancel-button :before-close="bcDispatch" @confirm="confirmDispatch">
       <div class="dialog-body">
         <div class="dialog-tip">选择处理该工单的服务点</div>
         <select v-model="dispatchForm.service_point_id" class="select-input">
@@ -498,7 +498,7 @@
     </van-dialog>
 
     <!-- ============ 分配工程师 ============ -->
-    <van-dialog v-model:show="showAssignEngineer" title="分配工程师" show-cancel-button @confirm="confirmAssignEngineer">
+    <van-dialog v-model:show="showAssignEngineer" title="分配工程师" show-cancel-button :before-close="bcAssignEngineer" @confirm="confirmAssignEngineer">
       <div class="dialog-body">
         <div class="dialog-tip">服务点: {{ currentOrder && currentOrder.service_point_name }}</div>
         <select v-model="dispatchForm.engineer_id" class="select-input">
@@ -527,6 +527,7 @@ import {
   startProcessingOrder, completeOrderApi, confirmCompletedApi, rejectOrder,
   addOrderNote, getReopenOptions, reopenClosedOrder,
 } from '@/api/admin'
+import { makeBeforeClose } from '@/utils/dialog'
 
 export default {
   name: 'AdminOrders',
@@ -574,6 +575,10 @@ export default {
         closed: '已关闭',
         cancelled: '已撤销',
       },
+
+      // Vant2 before-close 处理器（由 created 注入实现）
+      bcDispatch: null,
+      bcAssignEngineer: null,
     }
   },
   computed: {
@@ -605,6 +610,9 @@ export default {
     },
   },
   created() {
+    // 绑定 Vant2 before-close（提交失败保持弹窗打开）
+    this.bcDispatch = makeBeforeClose(this.confirmDispatch)
+    this.bcAssignEngineer = makeBeforeClose(this.confirmAssignEngineer)
     this.loadOrders()
     this.loadServicePoints()
   },

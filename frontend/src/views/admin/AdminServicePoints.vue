@@ -85,7 +85,7 @@
     </div>
 
     <!-- ============ 新增/编辑弹窗 ============ -->
-    <van-dialog v-model:show="showForm" :title="formMode === 'create' ? '新增服务点' : '编辑服务点'" show-cancel-button @confirm="submitForm" width="90%">
+    <van-dialog v-model:show="showForm" :title="formMode === 'create' ? '新增服务点' : '编辑服务点'" show-cancel-button :before-close="bcForm" @confirm="submitForm" width="90%">
       <div class="dialog-body">
         <van-cell-group inset>
           <van-field v-model="form.name" label="名称" placeholder="服务点名称（不可重复）" required maxlength="100" />
@@ -98,7 +98,7 @@
     </van-dialog>
 
     <!-- ============ 导入CSV弹窗 ============ -->
-    <van-dialog v-model:show="showImportDialog" title="导入服务点" show-cancel-button @confirm="submitImport" width="85%">
+    <van-dialog v-model:show="showImportDialog" title="导入服务点" show-cancel-button :before-close="bcImport" @confirm="submitImport" width="85%">
       <div class="dialog-body">
         <div class="dialog-tip">
           CSV 列顺序：<strong>名称,联系人,联系电话,地区,地址</strong>（第一行可作为表头自动跳过）<br>
@@ -118,7 +118,7 @@
     </van-dialog>
 
     <!-- ============ 确认删除弹窗 ============ -->
-    <van-dialog v-model:show="showHardDeleteConfirm" title="删除服务点" show-cancel-button @confirm="submitHardDelete">
+    <van-dialog v-model:show="showHardDeleteConfirm" title="删除服务点" show-cancel-button :before-close="bcHardDelete" @confirm="submitHardDelete">
       <div class="dialog-body">
         <div class="dialog-tip">确定彻底删除服务点 <strong>{{ currentRow && currentRow.name }}</strong>？</div>
         <div class="dialog-warn">⚠️ 此操作不可恢复，且仅在服务点下无用户/工程师/工单关联时才能成功。</div>
@@ -133,6 +133,7 @@ import {
   softDeleteServicePoint, restoreServicePoint, hardDeleteServicePoint,
   importServicePoints, exportServicePointsUrl,
 } from '@/api/admin'
+import { makeBeforeClose } from '@/utils/dialog'
 
 export default {
   name: 'AdminServicePoints',
@@ -157,6 +158,11 @@ export default {
 
       showImportDialog: false,
       importFile: null,
+
+      // Vant2 before-close 处理器（由 created 注入实现）
+      bcForm: null,
+      bcImport: null,
+      bcHardDelete: null,
     }
   },
   computed: {
@@ -179,6 +185,10 @@ export default {
     },
   },
   async created() {
+    // 绑定 Vant2 before-close（提交失败保持弹窗打开）
+    this.bcForm = makeBeforeClose(this.submitForm)
+    this.bcImport = makeBeforeClose(this.submitImport)
+    this.bcHardDelete = makeBeforeClose(this.submitHardDelete)
     await this.loadData(true)
   },
   methods: {
@@ -216,9 +226,10 @@ export default {
     },
     async submitForm() {
       const f = this.form
+      // 返回 false = 失败，before-close 保持弹窗打开
       if (!f.name || !f.name.trim()) {
         this.$toast('请填写名称')
-        return
+        return false
       }
       try {
         const payload = {
@@ -237,9 +248,11 @@ export default {
         }
         this.showForm = false
         this.loadData(false)
+        return true
       } catch (e) {
         const err = (e && e.response && e.response.data && e.response.data.error) || '操作失败'
         this.$toast(err)
+        return false
       }
     },
     async onDisable(row) {
@@ -271,10 +284,12 @@ export default {
         this.showHardDeleteConfirm = false
         this.currentRow = null
         this.loadData(false)
+        return true
       } catch (e) {
         const err = (e && e.response && e.response.data && e.response.data.error) || '操作失败'
         this.$toast(err)
-        // 不关闭弹窗，让用户看错误后手动取消
+        // 返回 false → before-close 保持弹窗打开，让用户看错误后手动取消
+        return false
       }
     },
     onFileChange(ev) {
@@ -284,7 +299,7 @@ export default {
     async submitImport() {
       if (!this.importFile) {
         this.$toast('请先选择文件')
-        return
+        return false
       }
       try {
         const res = await importServicePoints(this.importFile)
@@ -294,9 +309,11 @@ export default {
         this.showImportDialog = false
         this.importFile = null
         this.loadData(false)
+        return true
       } catch (e) {
         const err = (e && e.response && e.response.data && e.response.data.error) || '导入失败'
         this.$toast(err)
+        return false
       }
     },
     onExport() {
